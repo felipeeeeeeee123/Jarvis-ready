@@ -1,8 +1,10 @@
 from features.ai_brain import AIBrain
+from features.web_search import web_search
 
 def main():
     brain = AIBrain()
     print("🤖 JARVIS is online. Type 'exit' to quit.")
+    online_mode = True  # Turn this False to go fully offline
 
     while True:
         prompt = input("🧠 You: ").strip()
@@ -10,8 +12,10 @@ def main():
             print("👋 JARVIS shutting down.")
             break
 
-        response = brain.ask(prompt)
-        print(f"🤖 JARVIS: {response}")
+        if online_mode and prompt.lower().startswith("search:"):
+            query = prompt.split("search:", 1)[-1].strip()
+            response = web_search(query)
+        else:
+            response = brain.ask(prompt)
 
-if __name__ == "__main__":
-    main()
+        print(f"🤖 JARVIS: {response}")
