@@ -1,12 +1,21 @@
+from features.ai_brain import AIBrain
 
-from features.autotrade import run_autotrader
-from utils.memory import MemoryManager
 
-def main():
-    memory = MemoryManager()
-    memory.load()
-    print("JARVIS initialized with memory.")
-    run_autotrader()
+def main() -> None:
+    """Run the JARVIS command-line interface."""
+    brain = AIBrain()
+    print("\U0001F916 JARVIS is online. Type 'exit' to quit.")
+
+    while True:
+        prompt = input("\n\U0001F9E0 You: ").strip()
+        if prompt.lower() == "exit":
+            print("\U0001F44B JARVIS shutting down.")
+            break
+
+        response = brain.ask(prompt)
+        print(f"\n\U0001F916 JARVIS: {response}")
+
 
 if __name__ == "__main__":
     main()
+
