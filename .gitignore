@@ -18,3 +18,10 @@ logs/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Dev files
+.replit
+.vscode/
+
+# Databases
+*.sqlite3
