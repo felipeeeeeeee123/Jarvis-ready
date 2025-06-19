@@ -1,5 +1,7 @@
+# pyright: reportMissingImports=false
 import requests
 from typing import Callable
+import fitz
 from .web_search import web_search
 from .qa_memory import QAMemory
 from .evaluator import Evaluator
@@ -80,6 +82,7 @@ class EngineeringExpert:
         self.evaluator = Evaluator()
         self.engineering_memory = QAMemory(path="data/engineering_memory.json")
         self.memory = MemoryManager(path="data/engineering_insights.json")
+        self.textbook_memory = MemoryManager(path="data/engineering_textbooks.json")
 
     @classmethod
     def is_engineering_question(cls, query: str) -> bool:
@@ -115,8 +118,54 @@ class EngineeringExpert:
                 best_field = field
         return best_field
 
+    def ingest_pdf(self, path: str, discipline: str) -> None:
+        """Parse a PDF textbook and store content per discipline."""
+        doc = fitz.open(path)
+        chapters = []
+        current = {"title": "Introduction", "formulas": [], "content": ""}
+        for page in doc:
+            text = page.get_text()
+            for line in text.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                if line.lower().startswith("chapter"):
+                    if current["content"] or current["formulas"]:
+                        chapters.append(current)
+                    current = {"title": line, "formulas": [], "content": ""}
+                elif "=" in line and any(c.isalpha() for c in line):
+                    current["formulas"].append(line)
+                else:
+                    if current["content"]:
+                        current["content"] += " " + line
+                    else:
+                        current["content"] = line
+        chapters.append(current)
+        self.textbook_memory.memory.setdefault(discipline, []).extend(chapters)
+        self.textbook_memory.save()
+
+    def _textbook_context(self, discipline: str, query: str) -> str:
+        """Retrieve relevant textbook snippets for the query."""
+        data = self.textbook_memory.memory.get(discipline, [])
+        q = query.lower()
+        snippets = []
+        for chap in data:
+            if q in chap.get("title", "").lower():
+                snippets.append(chap.get("content", ""))
+                snippets.extend(chap.get("formulas", []))
+                continue
+            if q in chap.get("content", "").lower():
+                snippets.append(chap.get("content", ""))
+            for formula in chap.get("formulas", []):
+                if q in formula.lower():
+                    snippets.append(formula)
+        return "\n".join(snippets[:5])
+
     def _generic_answer(self, query: str, field: str = "engineering") -> str:
-        context = web_search(f"{query} {field}")
+        discipline = field.split()[0]
+        context = self._textbook_context(discipline, query)
+        if not context:
+            context = web_search(f"{query} {field}")
         if context and "Web search error" not in context and "No results" not in context:
             prompt = f"{query}\n\nContext:\n{context}"
         else:
