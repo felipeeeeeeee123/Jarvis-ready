@@ -515,8 +515,13 @@ class EngineeringExpert:
         return self._generic_answer(query, "biomedical engineering")
 
     # --- Simulation Capabilities ---
-    def simulate(self, prompt: str) -> str:
+    def simulate(
+        self, prompt: str, params: dict | None = None, tags: list[str] | None = None
+    ) -> str:
         """Run a simple physics simulation based on the prompt."""
+        if params:
+            extras = " " + " ".join(f"{k}={v}" for k, v in params.items())
+            prompt += extras
         q = prompt.lower()
         field = self._detect_field(q)
         if "flow" in q or "fluid" in q:
@@ -524,12 +529,15 @@ class EngineeringExpert:
         else:
             method = getattr(self, f"_simulate_{field}", self._simulate_mechanical)
         result_tuple = method(q)
-        if len(result_tuple) == 4:
-            result, path, model, fail = result_tuple
+        model = None
+        margin = 0.0
+        if len(result_tuple) == 5:
+            result, path, model, fail, margin = result_tuple
+        elif len(result_tuple) == 4:
+            result, path, fail, margin = result_tuple
         else:
             result, path, fail = result_tuple
-            model = None
-        self.engineering_memory.add(prompt, result, "Simulation", 1.0)
+        self.engineering_memory.add(prompt, result, "Simulation", 1.0, tags or ["simulation"])
         self.memory.memory["last_simulation"] = path
         if model:
             self.memory.memory["last_model"] = model
@@ -542,6 +550,9 @@ class EngineeringExpert:
             "path": path,
             "model": model,
             "timestamp": time.time(),
+            "params": params or {},
+            "performance": margin,
+            "tags": tags or [],
         }
         sims = self.sim_index.memory.setdefault("simulations", [])
         sims.append(entry)
@@ -551,7 +562,55 @@ class EngineeringExpert:
             msg += f"\n3D model saved to {model}"
         if fail:
             msg += f"\n**Failure detected. Suggestion:** {self._suggest_fix(field)}"
+        msg += f"\nPerformance score: {margin:.2f}"
         return msg
+
+    def optimize(
+        self,
+        sim_type: str,
+        objective: str,
+        ranges: dict,
+        iterations: int = 20,
+    ) -> dict:
+        """Simple random search optimization for a simulation."""
+        import random
+
+        best: dict | None = None
+        best_score = float("inf")
+        for _ in range(iterations):
+            params = {
+                k: random.uniform(v[0], v[1]) if isinstance(v, (list, tuple)) else v
+                for k, v in ranges.items()
+            }
+            result_msg = self.simulate(sim_type, params)
+            entry = self.sim_index.memory.get("simulations", [])[-1]
+            perf = entry.get("performance", 0)
+            score = abs(perf)
+            if score < best_score:
+                best_score = score
+                best = {"params": params, "result": result_msg, "score": perf}
+        return best or {}
+
+    def design_assistant(self, description: str) -> str:
+        """Heuristic-based design suggestions."""
+        desc = description.lower()
+        material = "steel" if "steel" in desc else "aluminum"
+        span = re.search(r"(\d+(?:\.\d+)?)\s*m", desc)
+        load = re.search(r"(\d+(?:\.\d+)?)\s*n", desc)
+        length = float(span.group(1)) if span else 1.0
+        force = float(load.group(1)) if load else 1000.0
+        suggestion = (
+            f"Material: {material}\nCross-section height: 0.1 m\n"
+            f"Estimated span: {length} m under {force} N"
+        )
+        return suggestion
+
+    def analysis_chain(self, description: str) -> str:
+        """Run blueprint, simulation and optimization in sequence."""
+        blueprint = self._generate_blueprint(description)
+        sim_res = self.simulate(description)
+        opt = self.optimize("mechanical", "stress", {"length": [1, 5], "force": [500, 2000]})
+        return f"{blueprint}\n\n{sim_res}\n\nBest config: {opt}"
 
     def _suggest_fix(self, field: str) -> str:
         fixes = {
@@ -597,18 +656,21 @@ class EngineeringExpert:
         bpy.ops.wm.read_factory_settings(use_empty=True)
         return glb_path
 
-    def _simulate_mechanical(self, q: str) -> Tuple[str, str, str, bool]:
+    def _simulate_mechanical(self, q: str) -> Tuple[str, str, str, bool, float]:
         length = 1.0
         force = 1000.0
+        h = 0.1
         m = re.search(r"(\d+(?:\.\d+)?)\s*m", q)
         if m:
             length = float(m.group(1))
         fm = re.search(r"(\d+(?:\.\d+)?)\s*n", q)
         if fm:
             force = float(fm.group(1))
+        hm = re.search(r"h=(\d+(?:\.\d+)?)", q)
+        if hm:
+            h = float(hm.group(1))
         x = np.linspace(0, length, 100)
-        inertia = 1e-6
-        h = 0.1
+        inertia = max(h ** 4 / 12, 1e-6)
         stress = force * (length - x) * (h / 2) / inertia
         fig, ax = plt.subplots()
         ax.plot(x, stress)
@@ -624,11 +686,13 @@ class EngineeringExpert:
             model_path = self._create_beam_model(length, h)
         except Exception:
             model_path = ""
-        fail = stress.max() > 2.5e8
-        result = f"Max stress: {stress.max():.2f} Pa"
-        return result, img_path, model_path, fail
+        max_stress = float(stress.max())
+        fail = max_stress > 2.5e8
+        result = f"Max stress: {max_stress:.2f} Pa"
+        margin = 2.5e8 - max_stress
+        return result, img_path, model_path, fail, margin
 
-    def _simulate_electrical(self, q: str) -> Tuple[str, str, bool]:
+    def _simulate_electrical(self, q: str) -> Tuple[str, str, bool, float]:
         voltage = 5.0
         resistors = re.findall(r"(\d+(?:\.\d+)?)\s*ohm", q)
         values = [float(r) for r in resistors] if resistors else [1.0, 1.0]
@@ -647,9 +711,10 @@ class EngineeringExpert:
         plt.close(fig)
         fail = current > 10
         result = f"Circuit current: {current:.2f} A"
-        return result, path, fail
+        margin = 10 - current
+        return result, path, fail, margin
 
-    def _simulate_thermal(self, q: str) -> Tuple[str, str, bool]:
+    def _simulate_thermal(self, q: str) -> Tuple[str, str, bool, float]:
         length = 1.0
         t1, t2 = 100.0, 0.0
         lm = re.search(r"(\d+(?:\.\d+)?)\s*m", q)
@@ -667,11 +732,13 @@ class EngineeringExpert:
         path = os.path.join(SIMULATION_DIR, f"thermal_{int(time.time()*1000)}.png")
         fig.savefig(path, bbox_inches="tight")
         plt.close(fig)
-        fail = max(t1, t2) > 500
+        max_temp = max(t1, t2)
+        fail = max_temp > 500
         result = f"Temperature range: {t1}C to {t2}C"
-        return result, path, fail
+        margin = 500 - max_temp
+        return result, path, fail, margin
 
-    def _simulate_civil(self, q: str) -> Tuple[str, str, bool]:
+    def _simulate_civil(self, q: str) -> Tuple[str, str, bool, float]:
         load = 1e4
         span = 5.0
         lm = re.search(r"(\d+(?:\.\d+)?)\s*ton", q)
@@ -691,11 +758,14 @@ class EngineeringExpert:
         path = os.path.join(SIMULATION_DIR, f"civil_{int(time.time()*1000)}.png")
         fig.savefig(path, bbox_inches="tight")
         plt.close(fig)
-        fail = y.max() > span / 100
-        result = f"Max deflection: {y.max():.4f} m"
-        return result, path, fail
+        max_def = float(y.max())
+        allow = span / 100
+        fail = max_def > allow
+        result = f"Max deflection: {max_def:.4f} m"
+        margin = allow - max_def
+        return result, path, fail, margin
 
-    def _simulate_aerospace(self, q: str) -> Tuple[str, str, bool]:
+    def _simulate_aerospace(self, q: str) -> Tuple[str, str, bool, float]:
         speed = 50.0
         m = re.search(r"(\d+(?:\.\d+)?)\s*m/s", q)
         if m:
@@ -713,9 +783,10 @@ class EngineeringExpert:
         plt.close(fig)
         fail = lift < 1e3
         result = f"Lift at {speed} m/s: {lift:.1f} N"
-        return result, path, fail
+        margin = lift - 1e3
+        return result, path, fail, margin
 
-    def _simulate_chemical(self, q: str) -> Tuple[str, str, bool]:
+    def _simulate_chemical(self, q: str) -> Tuple[str, str, bool, float]:
         temp = 300.0
         pressure = 1.0
         tm = re.search(r"(\d+(?:\.\d+)?)\s*c", q)
@@ -736,9 +807,10 @@ class EngineeringExpert:
         plt.close(fig)
         fail = temp > 400 or pressure > 5
         result = f"Rate constant: {k:.4f}"
-        return result, path, fail
+        margin = 400 - temp
+        return result, path, fail, margin
 
-    def _simulate_nuclear(self, q: str) -> Tuple[str, str, bool]:
+    def _simulate_nuclear(self, q: str) -> Tuple[str, str, bool, float]:
         flux = 1e12
         m = re.search(r"(\d+(?:\.\d+)?)\s*n/s", q)
         if m:
@@ -754,9 +826,10 @@ class EngineeringExpert:
         plt.close(fig)
         fail = flux > 1e14
         result = f"Neutron flux: {flux:.2e} n/s"
-        return result, path, fail
+        margin = 1e14 - flux
+        return result, path, fail, margin
 
-    def _simulate_computer(self, q: str) -> Tuple[str, str, bool]:
+    def _simulate_computer(self, q: str) -> Tuple[str, str, bool, float]:
         freq = 1.0
         fm = re.search(r"(\d+(?:\.\d+)?)\s*ghz", q)
         if fm:
@@ -773,9 +846,10 @@ class EngineeringExpert:
         plt.close(fig)
         fail = freq > 5
         result = f"Throughput: {ops:.2e} ops/s"
-        return result, path, fail
+        margin = 5 - freq
+        return result, path, fail, margin
 
-    def _simulate_fluid_flow(self, q: str) -> Tuple[str, str, bool]:
+    def _simulate_fluid_flow(self, q: str) -> Tuple[str, str, bool, float]:
         """Generate a simple laminar flow visualization using Plotly."""
         width = 1.0
         height = 1.0
@@ -808,6 +882,8 @@ class EngineeringExpert:
                 fig.write_image(img_path)
             except Exception:
                 fig.write_html(img_path.replace(".png", ".html"))
+        max_vel = float(velocity.max())
         fail = False
-        result = f"Max velocity: {velocity.max():.2f} m/s"
-        return result, img_path, fail
+        result = f"Max velocity: {max_vel:.2f} m/s"
+        margin = 1.0 - max_vel
+        return result, img_path, fail, margin

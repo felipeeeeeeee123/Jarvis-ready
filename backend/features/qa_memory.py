@@ -32,7 +32,14 @@ class QAMemory:
                 return True
         return False
 
-    def add(self, question: str, answer: str, source: str, confidence: float):
+    def add(
+        self,
+        question: str,
+        answer: str,
+        source: str,
+        confidence: float,
+        tags: list[str] | None = None,
+    ) -> None:
         tokens = len(answer.split())
         if tokens < 10:
             return
@@ -46,6 +53,8 @@ class QAMemory:
             "confidence": confidence,
             "timestamp": time.time(),
         }
+        if tags:
+            entry["tags"] = tags
         self._replace_outdated(entry)
         if not self._is_duplicate(question):
             self.data.append(entry)
