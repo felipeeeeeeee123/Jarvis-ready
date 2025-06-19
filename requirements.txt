@@ -20,3 +20,6 @@ sympy
 PySpice
 opencv-python
 networkx
+plotly
+kaleido
+bpy
