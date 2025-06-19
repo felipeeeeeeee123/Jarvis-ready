@@ -28,6 +28,19 @@ def show_dashboard():
         for res in results.values():
             st.markdown(res)
 
+    st.header("Blueprint Simulation")
+    blueprint = mem.memory.get("last_blueprint")
+    if blueprint:
+        st.image(blueprint)
+        if st.button("Run Simulation"):
+            from features.engineering_expert import EngineeringExpert
+
+            expert = EngineeringExpert()
+            result = expert.simulate(blueprint)
+            st.markdown(result)
+    else:
+        st.write("No blueprint available.")
+
 
 if __name__ == "__main__":
     show_dashboard()
