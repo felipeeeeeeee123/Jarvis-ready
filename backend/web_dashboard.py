@@ -1,5 +1,6 @@
 import streamlit as st
 from utils.memory import MemoryManager
+from features.ai_brain import AIBrain
 
 
 def show_dashboard():
@@ -15,6 +16,17 @@ def show_dashboard():
     total = wins + losses
     if total:
         st.write(f"Win rate: {wins/total*100:.2f}%")
+
+    st.header("Solve Worksheet PDF")
+    uploaded = st.file_uploader("Upload PDF", type=["pdf"])
+    if uploaded:
+        path = "uploaded.pdf"
+        with open(path, "wb") as f:
+            f.write(uploaded.getvalue())
+        brain = AIBrain()
+        results = brain.solve_pdf(path)
+        for res in results.values():
+            st.markdown(res)
 
 
 if __name__ == "__main__":
