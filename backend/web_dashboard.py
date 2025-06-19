@@ -1,8 +1,29 @@
 import streamlit as st
 import os
 import time
+import base64
 from utils.memory import MemoryManager
 from features.ai_brain import AIBrain
+
+
+def _display_model(path: str) -> None:
+    """Display a GLB model interactively using model-viewer."""
+    if not os.path.exists(path):
+        st.write("Model not found.")
+        return
+
+    try:
+        data = open(path, "rb").read()
+        b64 = base64.b64encode(data).decode()
+        html = f"""
+        <script type=\"module\" src=\"https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js\"></script>
+        <model-viewer src=\"data:model/gltf-binary;base64,{b64}\" camera-controls auto-rotate style=\"width: 100%; height: 300px;\"></model-viewer>
+        """
+        st.components.v1.html(html, height=320)
+    except Exception:
+        st.write("Preview unavailable. Download below.")
+        with open(path, "rb") as f:
+            st.download_button("Download model", data=f.read(), file_name=os.path.basename(path))
 
 
 def show_dashboard():
@@ -45,6 +66,13 @@ def show_dashboard():
     else:
         st.write("No blueprint available.")
 
+    st.header("Last 3D Model")
+    model = mem.memory.get("last_model")
+    if model:
+        _display_model(model)
+    else:
+        st.write("No 3D model available.")
+
     st.header("Sim Results")
     sim_mem = MemoryManager(path="data/simulation_index.json")
     for sim in reversed(sim_mem.memory.get("simulations", [])[-5:]):
@@ -52,6 +80,9 @@ def show_dashboard():
         with st.expander(f"{sim['prompt']} ({ts})"):
             st.markdown(sim.get("result", ""))
             st.image(sim.get("path", ""))
+            model_path = sim.get("model")
+            if model_path:
+                _display_model(model_path)
             col1, col2 = st.columns(2)
             if col1.button("Rerun", key=f"rerun_{ts}"):
                 from features.engineering_expert import EngineeringExpert

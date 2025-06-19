@@ -23,3 +23,4 @@ networkx
 plotly
 kaleido
 bpy
+streamlit==1.32.2
