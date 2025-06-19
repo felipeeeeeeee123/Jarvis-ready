@@ -1,10 +1,13 @@
 # pyright: reportMissingImports=false
+import os
+import time
 import requests
-from typing import Callable
+from typing import Callable, List
 import re
 import fitz
 import sympy as sp
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,6 +15,9 @@ from .web_search import web_search
 from .qa_memory import QAMemory
 from .evaluator import Evaluator
 from utils.memory import MemoryManager
+
+BLUEPRINT_DIR = "blueprints"
+os.makedirs(BLUEPRINT_DIR, exist_ok=True)
 
 
 class EngineeringExpert:
@@ -89,6 +95,13 @@ class EngineeringExpert:
         self.engineering_memory = QAMemory(path="data/engineering_memory.json")
         self.memory = MemoryManager(path="data/engineering_insights.json")
         self.textbook_memory = MemoryManager(path="data/engineering_textbooks.json")
+        self.formula_index = MemoryManager(path="data/formula_index.json")
+
+    def _index_formula(self, formula: str, tags: List[str]) -> None:
+        entry = {"formula": formula, "tags": tags, "timestamp": time.time()}
+        formulas = self.formula_index.memory.setdefault("formulas", [])
+        formulas.append(entry)
+        self.formula_index.save()
 
     @staticmethod
     def _is_math_problem(query: str) -> bool:
@@ -103,13 +116,21 @@ class EngineeringExpert:
                 expr_str = q.split("integrate", 1)[1]
                 expr = sp.sympify(expr_str)
                 result = sp.integrate(expr)
-                return f"∫ {expr_str} = {sp.simplify(result)}"
+                formula = f"∫ {expr_str}"
+                self._index_formula(formula, expr_str.split())
+                return f"{formula} = {sp.simplify(result)}"
             if "derivative" in q or "d/d" in q:
-                expr_str = q.split("derivative of", 1)[1] if "derivative of" in q else q.split("d/dx", 1)[1]
+                expr_str = (
+                    q.split("derivative of", 1)[1]
+                    if "derivative of" in q
+                    else q.split("d/dx", 1)[1]
+                )
                 x = sp.symbols("x")
                 expr = sp.sympify(expr_str)
                 result = sp.diff(expr, x)
-                return f"d({expr_str})/dx = {sp.simplify(result)}"
+                formula = f"d({expr_str})/dx"
+                self._index_formula(formula, expr_str.split())
+                return f"{formula} = {sp.simplify(result)}"
             if "solve" in q:
                 m = re.search(r"solve (.+?)=([^ ]+) for ([a-zA-Z])", q)
                 if m:
@@ -117,12 +138,20 @@ class EngineeringExpert:
                     symbol = sp.symbols(var)
                     equation = sp.Eq(sp.sympify(left), sp.sympify(right))
                     solution = sp.solve(equation, symbol)
+                    formula = f"{left}={right}"
+                    self._index_formula(formula, [var])
                     return f"Solutions for {var}: {solution}"
             if "=" in q:
                 left, right = q.split("=", 1)
-                vars_ = list(sp.sympify(left).free_symbols | sp.sympify(right).free_symbols)
+                vars_ = list(
+                    sp.sympify(left).free_symbols | sp.sympify(right).free_symbols
+                )
                 if vars_:
-                    solution = sp.solve(sp.Eq(sp.sympify(left), sp.sympify(right)), vars_)
+                    solution = sp.solve(
+                        sp.Eq(sp.sympify(left), sp.sympify(right)), vars_
+                    )
+                    formula = f"{left}={right}"
+                    self._index_formula(formula, [str(v) for v in vars_])
                     return f"Solution: {solution}"
         except Exception as exc:
             return f"[Error solving symbolically: {exc}]"
@@ -137,16 +166,29 @@ class EngineeringExpert:
         q = query.lower()
         if "truss" in q:
             joints = 3
+            width = joints
+            height = 1
+            jm = re.search(r"(\d+)[- ]*beam", q)
+            if jm:
+                joints = int(jm.group(1)) + 1
             m = re.search(r"(\d+)\s*joints?", q)
             if m:
                 joints = int(m.group(1))
-            return self._draw_truss(joints)
+            dm = re.search(r"(\d+(?:\.\d+)?)\s*[xby]\s*(\d+(?:\.\d+)?)", q)
+            if dm:
+                width = float(dm.group(1))
+                height = float(dm.group(2))
+            return self._draw_truss(joints, width, height)
         if "beam" in q:
             spans = 1
+            length = spans
             m = re.search(r"(\d+)\s*spans?", q)
             if m:
                 spans = int(m.group(1))
-            return self._draw_beam(spans)
+            dm = re.search(r"(\d+(?:\.\d+)?)\s*(?:m|meters)?", q)
+            if dm:
+                length = float(dm.group(1))
+            return self._draw_beam(spans, length)
         if "circuit" in q:
             comps = 2
             m = re.search(r"(\d+)\s*(?:resistors|components)", q)
@@ -161,28 +203,29 @@ class EngineeringExpert:
             return self._draw_pcb(comps)
         return "[Blueprint request not understood]"
 
-    def _draw_truss(self, joints: int) -> str:
+    def _draw_truss(self, joints: int, width: float, height: float) -> str:
         fig, ax = plt.subplots()
-        x = np.arange(joints)
+        x = np.linspace(0, width, joints)
         ax.plot(x, [0] * joints, "ko-")
         for i in range(joints - 2):
-            ax.plot([x[i], x[i + 1]], [0, 1], "k-")
-            ax.plot([x[i + 1], x[i + 2]], [0, 1], "k-")
+            ax.plot([x[i], x[i + 1]], [0, height], "k-")
+            ax.plot([x[i + 1], x[i + 2]], [0, height], "k-")
         ax.axis("equal")
         ax.axis("off")
-        path = "data/blueprint.png"
+        path = os.path.join(BLUEPRINT_DIR, f"blueprint_{int(time.time()*1000)}.png")
         fig.savefig(path, bbox_inches="tight")
         plt.close(fig)
         return f"Blueprint saved to {path}"
 
-    def _draw_beam(self, spans: int) -> str:
+    def _draw_beam(self, spans: int, length: float) -> str:
         fig, ax = plt.subplots()
-        ax.plot([0, spans], [0, 0], "k-", lw=2)
-        for i in range(spans + 1):
-            ax.plot([i, i], [0, -0.2], "k-")
+        x = np.linspace(0, length, spans + 1)
+        ax.plot([0, length], [0, 0], "k-", lw=2)
+        for pos in x:
+            ax.plot([pos, pos], [0, -0.2], "k-")
         ax.axis("equal")
         ax.axis("off")
-        path = "data/blueprint.png"
+        path = os.path.join(BLUEPRINT_DIR, f"blueprint_{int(time.time()*1000)}.png")
         fig.savefig(path, bbox_inches="tight")
         plt.close(fig)
         return f"Blueprint saved to {path}"
@@ -198,7 +241,7 @@ class EngineeringExpert:
         ax.plot([0, components], [1, 1], "k-")
         ax.axis("equal")
         ax.axis("off")
-        path = "data/blueprint.png"
+        path = os.path.join(BLUEPRINT_DIR, f"blueprint_{int(time.time()*1000)}.png")
         fig.savefig(path, bbox_inches="tight")
         plt.close(fig)
         return f"Blueprint saved to {path}"
@@ -206,12 +249,14 @@ class EngineeringExpert:
     def _draw_pcb(self, components: int) -> str:
         fig, ax = plt.subplots()
         for i in range(components):
-            rect = plt.Rectangle((i, i % 2), 0.8, 0.4, edgecolor="black", facecolor="lightgray")
+            rect = plt.Rectangle(
+                (i, i % 2), 0.8, 0.4, edgecolor="black", facecolor="lightgray"
+            )
             ax.add_patch(rect)
         ax.set_xlim(0, components)
         ax.set_ylim(0, 2)
         ax.axis("off")
-        path = "data/blueprint.png"
+        path = os.path.join(BLUEPRINT_DIR, f"blueprint_{int(time.time()*1000)}.png")
         fig.savefig(path, bbox_inches="tight")
         plt.close(fig)
         return f"Blueprint saved to {path}"
@@ -281,6 +326,26 @@ class EngineeringExpert:
         self.textbook_memory.memory.setdefault(discipline, []).extend(chapters)
         self.textbook_memory.save()
 
+    def solve_pdf_worksheet(self, path: str) -> dict:
+        """Solve each numbered problem in a PDF worksheet."""
+        doc = fitz.open(path)
+        results = {}
+        pattern = re.compile(r"^\d+\.\s+")
+        for page in doc:
+            lines = page.get_text().splitlines()
+            current = ""
+            for line in lines:
+                if pattern.match(line.strip()):
+                    if current:
+                        results[current] = self.answer(current)
+                    current = pattern.sub("", line.strip())
+                else:
+                    current += " " + line.strip()
+            if current:
+                results[current] = self.answer(current)
+                current = ""
+        return results
+
     def _textbook_context(self, discipline: str, query: str) -> str:
         """Retrieve relevant textbook snippets for the query."""
         data = self.textbook_memory.memory.get(discipline, [])
@@ -303,7 +368,11 @@ class EngineeringExpert:
         context = self._textbook_context(discipline, query)
         if not context:
             context = web_search(f"{query} {field}")
-        if context and "Web search error" not in context and "No results" not in context:
+        if (
+            context
+            and "Web search error" not in context
+            and "No results" not in context
+        ):
             prompt = f"{query}\n\nContext:\n{context}"
         else:
             prompt = query
@@ -340,4 +409,3 @@ class EngineeringExpert:
 
     def _answer_biomedical(self, query: str) -> str:
         return self._generic_answer(query, "biomedical engineering")
-
