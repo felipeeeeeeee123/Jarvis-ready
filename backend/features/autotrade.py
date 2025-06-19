@@ -1,3 +1,8 @@
+# autotrade.py
+
+from dotenv import load_dotenv
+load_dotenv()
+
 import os
 from datetime import datetime
 import pandas as pd
@@ -7,19 +12,20 @@ from utils.memory import MemoryManager
 from .telegram_alerts import send_telegram_alert
 from .strategies import rsi_strategy, ema_strategy, macd_strategy
 
-ALPACA_KEY = os.getenv("ALPACA_KEY")
-ALPACA_SECRET = os.getenv("ALPACA_SECRET")
-ALPACA_BASE_URL = os.getenv("ALPACA_BASE_URL", "https://paper-api.alpaca.markets")
+# === Load environment variables ===
+ALPACA_KEY = os.getenv("APCA_API_KEY_ID")
+ALPACA_SECRET = os.getenv("APCA_API_SECRET_KEY")
+ALPACA_BASE_URL = os.getenv("APCA_API_BASE_URL", "https://paper-api.alpaca.markets")
 TRADE_PERCENT = float(os.getenv("TRADE_PERCENT", 0.05))
 TRADE_CAP = float(os.getenv("TRADE_CAP", 40))
 STRATEGY = os.getenv("STRATEGY", "RSI").upper()
 COOLDOWN = int(os.getenv("TRADE_COOLDOWN", 3600))
 
+# === Alpaca REST client ===
 aip = REST(ALPACA_KEY, ALPACA_SECRET, base_url=ALPACA_BASE_URL)
-
 memory = MemoryManager()
 
-
+# === Strategy definitions ===
 STRATEGIES = {
     "RSI": rsi_strategy,
     "EMA": ema_strategy,
@@ -29,11 +35,9 @@ STRATEGIES = {
 def choose_strategy():
     return STRATEGIES.get(STRATEGY, rsi_strategy)
 
-
 def position_size(price: float, cash: float) -> int:
     budget = min(cash * TRADE_PERCENT, TRADE_CAP)
     return int(budget // price)
-
 
 def trade_signal(symbol: str) -> str:
     end = datetime.utcnow()
@@ -44,7 +48,6 @@ def trade_signal(symbol: str) -> str:
     prices = bars.close
     strategy = choose_strategy()
     return strategy(prices)
-
 
 def execute_trade(symbol: str) -> None:
     if not memory.should_trade(symbol, COOLDOWN):
@@ -64,7 +67,6 @@ def execute_trade(symbol: str) -> None:
         aip.submit_order(symbol, qty, "sell", "market", "gtc")
         memory.set_cooldown(symbol)
         send_telegram_alert(f"Sold {qty} {symbol} @ {last_price}")
-
 
 def run_autotrader(symbols=None):
     symbols = symbols or ["AAPL"]
