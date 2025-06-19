@@ -3,6 +3,8 @@ import os
 import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from utils.memory import MemoryManager
+from .qa_memory import QAMemory
+from .evaluator import Evaluator
 
 openai = None
 
@@ -10,6 +12,8 @@ class AIBrain:
     def __init__(self, model="gpt-3.5-turbo"):
         self.model = model
         self.memory = MemoryManager()
+        self.qa_memory = QAMemory()
+        self.evaluator = Evaluator()
         self.api_key = os.getenv("OPENAI_API_KEY")
         if self.api_key:
             import openai as openai_lib
@@ -39,5 +43,8 @@ class AIBrain:
 
         self.memory.memory["last_answer"] = answer
         self.memory.save()
+        score = self.evaluator.score(prompt, answer, "Ollama")
+        self.qa_memory.add(prompt, answer, "Ollama", score)
+        self.evaluator.update_leaderboard(prompt, score)
         return answer
 

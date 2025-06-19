@@ -6,3 +6,4 @@ streamlit
 flask
 python-dotenv
 pandas
+feedparser
