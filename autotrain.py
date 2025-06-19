@@ -5,6 +5,8 @@ import random
 import time
 from pathlib import Path
 
+PAUSE_FILE = Path("autotrain.pause")
+
 from backend.features.ai_brain import AIBrain
 from backend.features.web_search import web_search
 from backend.features.trending import TrendingTopics
@@ -102,6 +104,9 @@ class SyntheticTrainer:
     def run(self):
         counter = len(self.seen)
         while True:
+            if PAUSE_FILE.exists():
+                time.sleep(1)
+                continue
             question = self.generate_question()
             qhash = hashlib.sha1(question.encode()).hexdigest()
             if qhash in self.seen:
