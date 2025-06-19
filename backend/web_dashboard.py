@@ -75,9 +75,59 @@ def show_dashboard():
     else:
         st.write("No 3D model available.")
 
+    st.header("Interactive Simulation")
+    sim_type = st.selectbox(
+        "Simulation type",
+        ["mechanical", "civil", "electrical", "thermal", "fluid"],
+    )
+    params = {}
+    if sim_type == "mechanical":
+        params["length"] = st.slider("Length (m)", 1.0, 10.0, 1.0)
+        params["force"] = st.slider("Force (N)", 100.0, 5000.0, 1000.0)
+        params["h"] = st.slider("Height (m)", 0.05, 0.5, 0.1)
+    elif sim_type == "civil":
+        params["span"] = st.slider("Span (m)", 1.0, 20.0, 5.0)
+        params["load"] = st.slider("Load (ton)", 1.0, 20.0, 1.0)
+    elif sim_type == "electrical":
+        params["voltage"] = st.slider("Voltage (V)", 1.0, 20.0, 5.0)
+    elif sim_type == "thermal":
+        params["length"] = st.slider("Length (m)", 0.5, 5.0, 1.0)
+        params["t1"] = st.slider("Temp 1 (C)", 0.0, 500.0, 100.0)
+        params["t2"] = st.slider("Temp 2 (C)", 0.0, 500.0, 0.0)
+    elif sim_type == "fluid":
+        params["width"] = st.slider("Width (m)", 0.5, 5.0, 1.0)
+        params["height"] = st.slider("Height (m)", 0.5, 5.0, 1.0)
+    if st.button("Run Interactive Simulation"):
+        from features.engineering_expert import EngineeringExpert
+
+        expert = EngineeringExpert()
+        st.markdown(expert.simulate(sim_type, params))
+
+    st.subheader("Optimization Mode")
+    if st.button("Optimize", key="opt_btn"):
+        from features.engineering_expert import EngineeringExpert
+
+        expert = EngineeringExpert()
+        best = expert.optimize(sim_type, "perf", {k: (0.5, v) if isinstance(v, float) else v for k, v in params.items()})
+        st.json(best)
+
+    st.subheader("AI Design Assistant")
+    desc = st.text_input("Describe your design goal")
+    if st.button("Get Design", key="design") and desc:
+        from features.engineering_expert import EngineeringExpert
+
+        expert = EngineeringExpert()
+        st.markdown(expert.design_assistant(desc))
+        if st.button("Run Full Analysis", key="chain"):
+            st.markdown(expert.analysis_chain(desc))
+
     st.header("Sim Results")
     sim_mem = MemoryManager(path="data/simulation_index.json")
-    for sim in reversed(sim_mem.memory.get("simulations", [])[-5:]):
+    tag_filter = st.text_input("Filter by tag")
+    sims_to_show = sim_mem.memory.get("simulations", [])
+    if tag_filter:
+        sims_to_show = [s for s in sims_to_show if tag_filter in s.get("tags", [])]
+    for sim in reversed(sims_to_show[-5:]):
         ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(sim.get("timestamp", 0)))
         with st.expander(f"{sim['prompt']} ({ts})"):
             st.markdown(sim.get("result", ""))
