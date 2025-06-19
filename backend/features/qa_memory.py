@@ -8,9 +8,11 @@ class QAMemory:
     def __init__(self, path: str = "data/qa_memory.json"):
         self.path = Path(path)
         self.data = []
+        self.pruned_total = 0
         self.load()
 
     def load(self):
+        self.pruned_total = 0
         if self.path.exists():
             try:
                 with open(self.path) as f:
@@ -32,7 +34,7 @@ class QAMemory:
 
     def add(self, question: str, answer: str, source: str, confidence: float):
         tokens = len(answer.split())
-        if tokens < 20:
+        if tokens < 10:
             return
         if confidence < 0.5 and self._is_duplicate(question):
             return
@@ -48,6 +50,7 @@ class QAMemory:
         if not self._is_duplicate(question):
             self.data.append(entry)
         self.save()
+        self.prune()
 
     def _replace_outdated(self, new_entry: dict):
         year_tokens = [t for t in new_entry["answer"].split() if t.isdigit() and len(t) == 4]
@@ -61,16 +64,19 @@ class QAMemory:
                     self.data[idx] = new_entry
 
     def prune(self):
-        seen = set()
-        pruned = []
+        seen = {}
         for entry in sorted(self.data, key=lambda e: e.get("timestamp", 0)):
+            if entry.get("tokens", 0) < 10:
+                self.pruned_total += 1
+                continue
             key = entry["question"]
             if key in seen:
-                continue
-            seen.add(key)
-            if entry.get("tokens", 0) >= 20:
-                pruned.append(entry)
-        self.data = pruned
+                if entry.get("timestamp", 0) > seen[key].get("timestamp", 0):
+                    seen[key] = entry
+                    self.pruned_total += 1
+            else:
+                seen[key] = entry
+        self.data = list(seen.values())
         self.save()
 
     def get_random(self):

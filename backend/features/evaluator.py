@@ -1,6 +1,8 @@
 import csv
-import math
 from pathlib import Path
+from difflib import SequenceMatcher
+
+from .qa_memory import QAMemory
 
 
 SOURCE_WEIGHT = {
@@ -15,6 +17,7 @@ class Evaluator:
         self.board_path = Path(leaderboard)
         if not self.board_path.exists():
             self.board_path.write_text("question,score\n")
+        self.memory = QAMemory()
 
     def score(self, question: str, answer: str, source: str) -> float:
         tokens = len(answer.split())
@@ -23,7 +26,17 @@ class Evaluator:
         overlap = sum(1 for w in answer.lower().split() if w in keywords)
         keyword_score = overlap / (len(keywords) or 1)
         source_score = SOURCE_WEIGHT.get(source, 0.5)
-        return round((token_score * 0.5) + (keyword_score * 0.3) + (source_score * 0.2), 4)
+
+        # originality compared to existing memory
+        max_sim = 0.0
+        for entry in self.memory.data:
+            ratio = SequenceMatcher(None, entry.get("answer", ""), answer).ratio()
+            if ratio > max_sim:
+                max_sim = ratio
+        originality = 1 - max_sim
+
+        score = (token_score * 0.4) + (keyword_score * 0.3) + (source_score * 0.1) + (originality * 0.2)
+        return round(score, 4)
 
     def update_leaderboard(self, question: str, score: float):
         entries = []
