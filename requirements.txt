@@ -18,3 +18,5 @@ numpy
 scipy
 sympy
 PySpice
+opencv-python
+networkx
