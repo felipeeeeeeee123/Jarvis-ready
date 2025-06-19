@@ -1,7 +1,13 @@
 # pyright: reportMissingImports=false
 import requests
 from typing import Callable
+import re
 import fitz
+import sympy as sp
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import numpy as np
 from .web_search import web_search
 from .qa_memory import QAMemory
 from .evaluator import Evaluator
@@ -84,6 +90,132 @@ class EngineeringExpert:
         self.memory = MemoryManager(path="data/engineering_insights.json")
         self.textbook_memory = MemoryManager(path="data/engineering_textbooks.json")
 
+    @staticmethod
+    def _is_math_problem(query: str) -> bool:
+        q = query.lower()
+        triggers = ["integrate", "derivative", "solve", "=", "d/d"]
+        return any(t in q for t in triggers)
+
+    def _solve_symbolically(self, query: str) -> str:
+        try:
+            q = query.lower()
+            if "integrate" in q:
+                expr_str = q.split("integrate", 1)[1]
+                expr = sp.sympify(expr_str)
+                result = sp.integrate(expr)
+                return f"∫ {expr_str} = {sp.simplify(result)}"
+            if "derivative" in q or "d/d" in q:
+                expr_str = q.split("derivative of", 1)[1] if "derivative of" in q else q.split("d/dx", 1)[1]
+                x = sp.symbols("x")
+                expr = sp.sympify(expr_str)
+                result = sp.diff(expr, x)
+                return f"d({expr_str})/dx = {sp.simplify(result)}"
+            if "solve" in q:
+                m = re.search(r"solve (.+?)=([^ ]+) for ([a-zA-Z])", q)
+                if m:
+                    left, right, var = m.groups()
+                    symbol = sp.symbols(var)
+                    equation = sp.Eq(sp.sympify(left), sp.sympify(right))
+                    solution = sp.solve(equation, symbol)
+                    return f"Solutions for {var}: {solution}"
+            if "=" in q:
+                left, right = q.split("=", 1)
+                vars_ = list(sp.sympify(left).free_symbols | sp.sympify(right).free_symbols)
+                if vars_:
+                    solution = sp.solve(sp.Eq(sp.sympify(left), sp.sympify(right)), vars_)
+                    return f"Solution: {solution}"
+        except Exception as exc:
+            return f"[Error solving symbolically: {exc}]"
+        return "[Unable to solve symbolically]"
+
+    @staticmethod
+    def _is_blueprint_request(query: str) -> bool:
+        q = query.lower()
+        return any(w in q for w in ["draw", "blueprint", "diagram"])
+
+    def _generate_blueprint(self, query: str) -> str:
+        q = query.lower()
+        if "truss" in q:
+            joints = 3
+            m = re.search(r"(\d+)\s*joints?", q)
+            if m:
+                joints = int(m.group(1))
+            return self._draw_truss(joints)
+        if "beam" in q:
+            spans = 1
+            m = re.search(r"(\d+)\s*spans?", q)
+            if m:
+                spans = int(m.group(1))
+            return self._draw_beam(spans)
+        if "circuit" in q:
+            comps = 2
+            m = re.search(r"(\d+)\s*(?:resistors|components)", q)
+            if m:
+                comps = int(m.group(1))
+            return self._draw_circuit(comps)
+        if "pcb" in q:
+            comps = 2
+            m = re.search(r"(\d+)\s*components", q)
+            if m:
+                comps = int(m.group(1))
+            return self._draw_pcb(comps)
+        return "[Blueprint request not understood]"
+
+    def _draw_truss(self, joints: int) -> str:
+        fig, ax = plt.subplots()
+        x = np.arange(joints)
+        ax.plot(x, [0] * joints, "ko-")
+        for i in range(joints - 2):
+            ax.plot([x[i], x[i + 1]], [0, 1], "k-")
+            ax.plot([x[i + 1], x[i + 2]], [0, 1], "k-")
+        ax.axis("equal")
+        ax.axis("off")
+        path = "data/blueprint.png"
+        fig.savefig(path, bbox_inches="tight")
+        plt.close(fig)
+        return f"Blueprint saved to {path}"
+
+    def _draw_beam(self, spans: int) -> str:
+        fig, ax = plt.subplots()
+        ax.plot([0, spans], [0, 0], "k-", lw=2)
+        for i in range(spans + 1):
+            ax.plot([i, i], [0, -0.2], "k-")
+        ax.axis("equal")
+        ax.axis("off")
+        path = "data/blueprint.png"
+        fig.savefig(path, bbox_inches="tight")
+        plt.close(fig)
+        return f"Blueprint saved to {path}"
+
+    def _draw_circuit(self, components: int) -> str:
+        fig, ax = plt.subplots()
+        x = np.linspace(0, components, components + 1)
+        for i in range(components):
+            ax.plot([x[i], x[i + 1]], [0, 0], "k-")
+            ax.text((x[i] + x[i + 1]) / 2, 0.1, f"R{i + 1}", ha="center")
+        ax.plot([0, 0], [0, 1], "k-")
+        ax.plot([components, components], [0, 1], "k-")
+        ax.plot([0, components], [1, 1], "k-")
+        ax.axis("equal")
+        ax.axis("off")
+        path = "data/blueprint.png"
+        fig.savefig(path, bbox_inches="tight")
+        plt.close(fig)
+        return f"Blueprint saved to {path}"
+
+    def _draw_pcb(self, components: int) -> str:
+        fig, ax = plt.subplots()
+        for i in range(components):
+            rect = plt.Rectangle((i, i % 2), 0.8, 0.4, edgecolor="black", facecolor="lightgray")
+            ax.add_patch(rect)
+        ax.set_xlim(0, components)
+        ax.set_ylim(0, 2)
+        ax.axis("off")
+        path = "data/blueprint.png"
+        fig.savefig(path, bbox_inches="tight")
+        plt.close(fig)
+        return f"Blueprint saved to {path}"
+
     @classmethod
     def is_engineering_question(cls, query: str) -> bool:
         q = query.lower()
@@ -96,11 +228,16 @@ class EngineeringExpert:
         return False
 
     def answer(self, query: str) -> str:
-        field = self._detect_field(query)
-        method: Callable[[str], str] = getattr(
-            self, f"_answer_{field}", self._generic_answer
-        )
-        answer = method(query)
+        if self._is_blueprint_request(query):
+            answer = self._generate_blueprint(query)
+        elif self._is_math_problem(query):
+            answer = self._solve_symbolically(query)
+        else:
+            field = self._detect_field(query)
+            method: Callable[[str], str] = getattr(
+                self, f"_answer_{field}", self._generic_answer
+            )
+            answer = method(query)
         score = self.evaluator.score(query, answer, "Ollama")
         self.engineering_memory.add(query, answer, "Ollama", score)
         self.memory.memory[query] = {"answer": answer, "score": score}
