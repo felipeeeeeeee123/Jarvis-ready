@@ -18,6 +18,9 @@ class SelfAudit(threading.Thread):
         self.brain = AIBrain()
         self.memory = QAMemory()
         self.evaluator = Evaluator()
+        self.check_total = 0
+        self.checked = 0
+        self.updated_last = 0
 
     def stop(self) -> None:
         self.stop_event.set()
@@ -32,12 +35,16 @@ class SelfAudit(threading.Thread):
         self.memory.load()
         now = time.time()
         changed = False
+        self.check_total = len(self.memory.data)
+        self.checked = 0
+        self.updated_last = 0
         for i, entry in enumerate(list(self.memory.data)):
             score = entry.get("confidence")
             if score is None:
                 score = self.evaluator.score(entry["question"], entry["answer"], entry["source"])
             age = now - entry.get("timestamp", 0)
             if age < self.review_age and score >= 0.5:
+                self.checked += 1
                 continue
 
             try:
@@ -58,5 +65,7 @@ class SelfAudit(threading.Thread):
                 }
                 self.evaluator.update_leaderboard(entry["question"], new_score)
                 changed = True
+                self.updated_last += 1
+            self.checked += 1
         if changed:
             self.memory.save()

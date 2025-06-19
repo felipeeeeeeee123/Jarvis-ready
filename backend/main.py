@@ -70,7 +70,7 @@ def main():
     monitor_thread.start()
     reflect_thread = SelfReflection()
     audit_thread = SelfAudit()
-    dashboard_thread = TerminalDashboard()
+    dashboard_thread = TerminalDashboard(audit=audit_thread)
     reflect_thread.start()
     audit_thread.start()
     dashboard_thread.start()
@@ -91,11 +91,12 @@ def main():
                 response = "Trade executed"
             else:
                 response = brain.ask(prompt)
-            
+
             if response.startswith("[Error"):
                 dashboard_thread.fail += 1
             else:
                 dashboard_thread.success += 1
+            dashboard_thread.log_interaction(prompt, response)
             print(f"🤖 JARVIS: {response}")
     except KeyboardInterrupt:
         print("\n👋 JARVIS shutting down.")
