@@ -2,12 +2,14 @@
 import os
 import time
 import requests
-from typing import Callable, List
+from typing import Callable, List, Tuple
 import re
 from difflib import SequenceMatcher
 import fitz
 import sympy as sp
 import matplotlib
+import cv2
+import networkx as nx
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -77,6 +79,13 @@ class EngineeringExpert:
             "aerodynamics",
             "satellite",
         ],
+        "nuclear": [
+            "nuclear",
+            "reactor",
+            "radiation",
+            "neutron",
+            "fission",
+        ],
         "industrial": [
             "industrial",
             "manufacturing",
@@ -99,6 +108,7 @@ class EngineeringExpert:
         self.memory = MemoryManager(path="data/engineering_insights.json")
         self.textbook_memory = MemoryManager(path="data/engineering_textbooks.json")
         self.formula_index = MemoryManager(path="data/formula_index.json")
+        self.sim_index = MemoryManager(path="data/simulation_index.json")
 
     def _index_formula(self, formula: str, tags: List[str], steps: str) -> None:
         entry = {
@@ -305,7 +315,9 @@ class EngineeringExpert:
         fig.savefig(path, bbox_inches="tight")
         plt.close(fig)
         self.memory.memory["last_blueprint"] = path
-        self.memory.memory["last_blueprint_prompt"] = f"circuit with {components} components"
+        self.memory.memory["last_blueprint_prompt"] = (
+            f"circuit with {components} components"
+        )
         self.memory.save()
         return f"Blueprint saved to {path}\n![blueprint]({path})"
 
@@ -323,7 +335,9 @@ class EngineeringExpert:
         fig.savefig(path, bbox_inches="tight")
         plt.close(fig)
         self.memory.memory["last_blueprint"] = path
-        self.memory.memory["last_blueprint_prompt"] = f"pcb with {components} components"
+        self.memory.memory["last_blueprint_prompt"] = (
+            f"pcb with {components} components"
+        )
         self.memory.save()
         return f"Blueprint saved to {path}\n![blueprint]({path})"
 
@@ -480,6 +494,9 @@ class EngineeringExpert:
     def _answer_aerospace(self, query: str) -> str:
         return self._generic_answer(query, "aerospace engineering")
 
+    def _answer_nuclear(self, query: str) -> str:
+        return self._generic_answer(query, "nuclear engineering")
+
     def _answer_industrial(self, query: str) -> str:
         return self._generic_answer(query, "industrial engineering")
 
@@ -490,18 +507,40 @@ class EngineeringExpert:
     def simulate(self, prompt: str) -> str:
         """Run a simple physics simulation based on the prompt."""
         q = prompt.lower()
-        if "thermal" in q or "heat" in q:
-            path = self._simulate_thermal(q)
-        elif "current" in q or "voltage" in q or "circuit" in q:
-            path = self._simulate_electrical(q)
-        else:
-            path = self._simulate_mechanical(q)
-        self.engineering_memory.add(prompt, f"Simulation saved to {path}", "Simulation", 1.0)
+        field = self._detect_field(q)
+        method = getattr(self, f"_simulate_{field}", self._simulate_mechanical)
+        result, path, fail = method(q)
+        self.engineering_memory.add(prompt, result, "Simulation", 1.0)
         self.memory.memory["last_simulation"] = path
         self.memory.save()
-        return f"Simulation saved to {path}\n![simulation]({path})"
+        entry = {
+            "prompt": prompt,
+            "field": field,
+            "result": result,
+            "path": path,
+            "timestamp": time.time(),
+        }
+        sims = self.sim_index.memory.setdefault("simulations", [])
+        sims.append(entry)
+        self.sim_index.save()
+        msg = f"{result}\nSimulation saved to {path}\n![simulation]({path})"
+        if fail:
+            msg += f"\n**Failure detected. Suggestion:** {self._suggest_fix(field)}"
+        return msg
 
-    def _simulate_mechanical(self, q: str) -> str:
+    def _suggest_fix(self, field: str) -> str:
+        fixes = {
+            "mechanical": "Use stronger material or add support",
+            "civil": "Use I-beam instead of flat bar",
+            "electrical": "Add a heat sink",
+            "chemical": "Lower temperature or pressure",
+            "aerospace": "Increase wing area",
+            "nuclear": "Insert control rods",
+            "computer": "Improve cooling",
+        }
+        return fixes.get(field, "Review design parameters")
+
+    def _simulate_mechanical(self, q: str) -> Tuple[str, str, bool]:
         length = 1.0
         force = 1000.0
         m = re.search(r"(\d+(?:\.\d+)?)\s*m", q)
@@ -521,9 +560,11 @@ class EngineeringExpert:
         path = os.path.join(SIMULATION_DIR, f"mechanical_{int(time.time()*1000)}.png")
         fig.savefig(path, bbox_inches="tight")
         plt.close(fig)
-        return path
+        fail = stress.max() > 2.5e8
+        result = f"Max stress: {stress.max():.2f} Pa"
+        return result, path, fail
 
-    def _simulate_electrical(self, q: str) -> str:
+    def _simulate_electrical(self, q: str) -> Tuple[str, str, bool]:
         voltage = 5.0
         resistors = re.findall(r"(\d+(?:\.\d+)?)\s*ohm", q)
         values = [float(r) for r in resistors] if resistors else [1.0, 1.0]
@@ -540,9 +581,11 @@ class EngineeringExpert:
         path = os.path.join(SIMULATION_DIR, f"electrical_{int(time.time()*1000)}.png")
         fig.savefig(path, bbox_inches="tight")
         plt.close(fig)
-        return path
+        fail = current > 10
+        result = f"Circuit current: {current:.2f} A"
+        return result, path, fail
 
-    def _simulate_thermal(self, q: str) -> str:
+    def _simulate_thermal(self, q: str) -> Tuple[str, str, bool]:
         length = 1.0
         t1, t2 = 100.0, 0.0
         lm = re.search(r"(\d+(?:\.\d+)?)\s*m", q)
@@ -560,4 +603,110 @@ class EngineeringExpert:
         path = os.path.join(SIMULATION_DIR, f"thermal_{int(time.time()*1000)}.png")
         fig.savefig(path, bbox_inches="tight")
         plt.close(fig)
-        return path
+        fail = max(t1, t2) > 500
+        result = f"Temperature range: {t1}C to {t2}C"
+        return result, path, fail
+
+    def _simulate_civil(self, q: str) -> Tuple[str, str, bool]:
+        load = 1e4
+        span = 5.0
+        lm = re.search(r"(\d+(?:\.\d+)?)\s*ton", q)
+        if lm:
+            load = float(lm.group(1)) * 9.81e3
+        sm = re.search(r"(\d+(?:\.\d+)?)\s*m", q)
+        if sm:
+            span = float(sm.group(1))
+        x = np.linspace(0, span, 50)
+        E = 2e11
+        I = 1e-4
+        y = load * x**2 * (3 * span - x) / (6 * E * I)
+        fig, ax = plt.subplots()
+        ax.plot(x, y)
+        ax.set_xlabel("Position (m)")
+        ax.set_ylabel("Deflection (m)")
+        path = os.path.join(SIMULATION_DIR, f"civil_{int(time.time()*1000)}.png")
+        fig.savefig(path, bbox_inches="tight")
+        plt.close(fig)
+        fail = y.max() > span / 100
+        result = f"Max deflection: {y.max():.4f} m"
+        return result, path, fail
+
+    def _simulate_aerospace(self, q: str) -> Tuple[str, str, bool]:
+        speed = 50.0
+        m = re.search(r"(\d+(?:\.\d+)?)\s*m/s", q)
+        if m:
+            speed = float(m.group(1))
+        rho = 1.225
+        area = 1.0
+        lift = 0.5 * rho * speed**2 * area
+        v = np.linspace(0, speed, 50)
+        fig, ax = plt.subplots()
+        ax.plot(v, 0.5 * rho * v**2 * area)
+        ax.set_xlabel("Speed (m/s)")
+        ax.set_ylabel("Lift (N)")
+        path = os.path.join(SIMULATION_DIR, f"aero_{int(time.time()*1000)}.png")
+        fig.savefig(path, bbox_inches="tight")
+        plt.close(fig)
+        fail = lift < 1e3
+        result = f"Lift at {speed} m/s: {lift:.1f} N"
+        return result, path, fail
+
+    def _simulate_chemical(self, q: str) -> Tuple[str, str, bool]:
+        temp = 300.0
+        pressure = 1.0
+        tm = re.search(r"(\d+(?:\.\d+)?)\s*c", q)
+        if tm:
+            temp = float(tm.group(1))
+        pm = re.search(r"(\d+(?:\.\d+)?)\s*atm", q)
+        if pm:
+            pressure = float(pm.group(1))
+        k = np.exp(-(5000) / (8.314 * (temp + 273.15)))
+        fig, ax = plt.subplots()
+        t = np.linspace(0, 10, 100)
+        conc = np.exp(-k * t)
+        ax.plot(t, conc)
+        ax.set_xlabel("Time")
+        ax.set_ylabel("Concentration")
+        path = os.path.join(SIMULATION_DIR, f"chemical_{int(time.time()*1000)}.png")
+        fig.savefig(path, bbox_inches="tight")
+        plt.close(fig)
+        fail = temp > 400 or pressure > 5
+        result = f"Rate constant: {k:.4f}"
+        return result, path, fail
+
+    def _simulate_nuclear(self, q: str) -> Tuple[str, str, bool]:
+        flux = 1e12
+        m = re.search(r"(\d+(?:\.\d+)?)\s*n/s", q)
+        if m:
+            flux = float(m.group(1))
+        t = np.linspace(0, 10, 100)
+        decay = np.exp(-0.1 * t)
+        fig, ax = plt.subplots()
+        ax.plot(t, decay)
+        ax.set_xlabel("Time (s)")
+        ax.set_ylabel("Relative Activity")
+        path = os.path.join(SIMULATION_DIR, f"nuclear_{int(time.time()*1000)}.png")
+        fig.savefig(path, bbox_inches="tight")
+        plt.close(fig)
+        fail = flux > 1e14
+        result = f"Neutron flux: {flux:.2e} n/s"
+        return result, path, fail
+
+    def _simulate_computer(self, q: str) -> Tuple[str, str, bool]:
+        freq = 1.0
+        fm = re.search(r"(\d+(?:\.\d+)?)\s*ghz", q)
+        if fm:
+            freq = float(fm.group(1))
+        ops = freq * 1e9
+        t = np.linspace(0, 1, 50)
+        throughput = ops * t
+        fig, ax = plt.subplots()
+        ax.plot(t, throughput)
+        ax.set_xlabel("Time (s)")
+        ax.set_ylabel("Operations")
+        path = os.path.join(SIMULATION_DIR, f"computer_{int(time.time()*1000)}.png")
+        fig.savefig(path, bbox_inches="tight")
+        plt.close(fig)
+        fail = freq > 5
+        result = f"Throughput: {ops:.2e} ops/s"
+        return result, path, fail
