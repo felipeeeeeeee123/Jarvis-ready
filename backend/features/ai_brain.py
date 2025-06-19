@@ -37,7 +37,7 @@ class AIBrain:
             path = prompt.split(" ", 2)[-1]
             try:
                 results = self.solve_pdf(path)
-                answer = "\n".join(f"{k}: {v}" for k, v in results.items())
+                answer = "\n\n".join(results.values())
                 self.memory.memory["last_answer"] = answer
                 self.memory.save()
                 return answer

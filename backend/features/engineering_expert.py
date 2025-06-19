@@ -4,6 +4,7 @@ import time
 import requests
 from typing import Callable, List
 import re
+from difflib import SequenceMatcher
 import fitz
 import sympy as sp
 import matplotlib
@@ -97,11 +98,30 @@ class EngineeringExpert:
         self.textbook_memory = MemoryManager(path="data/engineering_textbooks.json")
         self.formula_index = MemoryManager(path="data/formula_index.json")
 
-    def _index_formula(self, formula: str, tags: List[str]) -> None:
-        entry = {"formula": formula, "tags": tags, "timestamp": time.time()}
+    def _index_formula(self, formula: str, tags: List[str], steps: str) -> None:
+        entry = {
+            "formula": formula,
+            "tags": tags,
+            "steps": steps,
+            "timestamp": time.time(),
+        }
         formulas = self.formula_index.memory.setdefault("formulas", [])
         formulas.append(entry)
         self.formula_index.save()
+
+    def _find_similar_formula(self, formula: str) -> dict | None:
+        """Return the most similar indexed formula entry if similarity > 0.8."""
+        best = None
+        best_score = 0.0
+        for entry in self.formula_index.memory.get("formulas", []):
+            existing = entry.get("formula", "")
+            score = SequenceMatcher(None, existing, formula).ratio()
+            if score > best_score:
+                best = entry
+                best_score = score
+        if best_score > 0.8:
+            return best
+        return None
 
     @staticmethod
     def _is_math_problem(query: str) -> bool:
@@ -114,11 +134,16 @@ class EngineeringExpert:
             q = query.lower()
             if "integrate" in q:
                 expr_str = q.split("integrate", 1)[1]
+                formula = f"∫ {expr_str}"
+                cached = self._find_similar_formula(formula)
+                if cached:
+                    return cached.get("steps", cached["formula"])
                 expr = sp.sympify(expr_str)
                 result = sp.integrate(expr)
-                formula = f"∫ {expr_str}"
-                self._index_formula(formula, expr_str.split())
-                return f"{formula} = {sp.simplify(result)}"
+                simplified = sp.simplify(result)
+                steps = f"Integrate {expr_str}\n\\boxed{{{simplified}}}"
+                self._index_formula(formula, expr_str.split(), steps)
+                return steps
             if "derivative" in q or "d/d" in q:
                 expr_str = (
                     q.split("derivative of", 1)[1]
@@ -126,33 +151,46 @@ class EngineeringExpert:
                     else q.split("d/dx", 1)[1]
                 )
                 x = sp.symbols("x")
+                formula = f"d({expr_str})/dx"
+                cached = self._find_similar_formula(formula)
+                if cached:
+                    return cached.get("steps", cached["formula"])
                 expr = sp.sympify(expr_str)
                 result = sp.diff(expr, x)
-                formula = f"d({expr_str})/dx"
-                self._index_formula(formula, expr_str.split())
-                return f"{formula} = {sp.simplify(result)}"
+                simplified = sp.simplify(result)
+                steps = f"Differentiate {expr_str} w.r.t x\n\\boxed{{{simplified}}}"
+                self._index_formula(formula, expr_str.split(), steps)
+                return steps
             if "solve" in q:
                 m = re.search(r"solve (.+?)=([^ ]+) for ([a-zA-Z])", q)
                 if m:
                     left, right, var = m.groups()
                     symbol = sp.symbols(var)
+                    formula = f"{left}={right}"
+                    cached = self._find_similar_formula(formula)
+                    if cached:
+                        return cached.get("steps", cached["formula"])
                     equation = sp.Eq(sp.sympify(left), sp.sympify(right))
                     solution = sp.solve(equation, symbol)
-                    formula = f"{left}={right}"
-                    self._index_formula(formula, [var])
-                    return f"Solutions for {var}: {solution}"
+                    steps = f"Solve {left} = {right} for {var}\n\\boxed{{{solution}}}"
+                    self._index_formula(formula, [var], steps)
+                    return steps
             if "=" in q:
                 left, right = q.split("=", 1)
                 vars_ = list(
                     sp.sympify(left).free_symbols | sp.sympify(right).free_symbols
                 )
                 if vars_:
+                    formula = f"{left}={right}"
+                    cached = self._find_similar_formula(formula)
+                    if cached:
+                        return cached.get("steps", cached["formula"])
                     solution = sp.solve(
                         sp.Eq(sp.sympify(left), sp.sympify(right)), vars_
                     )
-                    formula = f"{left}={right}"
-                    self._index_formula(formula, [str(v) for v in vars_])
-                    return f"Solution: {solution}"
+                    steps = f"Solve {left} = {right} for {', '.join(map(str, vars_))}\n\\boxed{{{solution}}}"
+                    self._index_formula(formula, [str(v) for v in vars_], steps)
+                    return steps
         except Exception as exc:
             return f"[Error solving symbolically: {exc}]"
         return "[Unable to solve symbolically]"
@@ -215,7 +253,7 @@ class EngineeringExpert:
         path = os.path.join(BLUEPRINT_DIR, f"blueprint_{int(time.time()*1000)}.png")
         fig.savefig(path, bbox_inches="tight")
         plt.close(fig)
-        return f"Blueprint saved to {path}"
+        return f"Blueprint saved to {path}\n![blueprint]({path})"
 
     def _draw_beam(self, spans: int, length: float) -> str:
         fig, ax = plt.subplots()
@@ -228,7 +266,7 @@ class EngineeringExpert:
         path = os.path.join(BLUEPRINT_DIR, f"blueprint_{int(time.time()*1000)}.png")
         fig.savefig(path, bbox_inches="tight")
         plt.close(fig)
-        return f"Blueprint saved to {path}"
+        return f"Blueprint saved to {path}\n![blueprint]({path})"
 
     def _draw_circuit(self, components: int) -> str:
         fig, ax = plt.subplots()
@@ -244,7 +282,7 @@ class EngineeringExpert:
         path = os.path.join(BLUEPRINT_DIR, f"blueprint_{int(time.time()*1000)}.png")
         fig.savefig(path, bbox_inches="tight")
         plt.close(fig)
-        return f"Blueprint saved to {path}"
+        return f"Blueprint saved to {path}\n![blueprint]({path})"
 
     def _draw_pcb(self, components: int) -> str:
         fig, ax = plt.subplots()
@@ -259,7 +297,7 @@ class EngineeringExpert:
         path = os.path.join(BLUEPRINT_DIR, f"blueprint_{int(time.time()*1000)}.png")
         fig.savefig(path, bbox_inches="tight")
         plt.close(fig)
-        return f"Blueprint saved to {path}"
+        return f"Blueprint saved to {path}\n![blueprint]({path})"
 
     @classmethod
     def is_engineering_question(cls, query: str) -> bool:
@@ -300,6 +338,12 @@ class EngineeringExpert:
                 best_field = field
         return best_field
 
+    def _format_worksheet_answer(self, question: str, solution: str) -> str:
+        """Return tutor-style formatted solution string."""
+        final_line = solution.splitlines()[-1]
+        boxed = f"**{final_line}**"
+        return f"**Question:** {question}\n{solution}\n\n{boxed}"
+
     def ingest_pdf(self, path: str, discipline: str) -> None:
         """Parse a PDF textbook and store content per discipline."""
         doc = fitz.open(path)
@@ -337,12 +381,14 @@ class EngineeringExpert:
             for line in lines:
                 if pattern.match(line.strip()):
                     if current:
-                        results[current] = self.answer(current)
+                        sol = self.answer(current)
+                        results[current] = self._format_worksheet_answer(current, sol)
                     current = pattern.sub("", line.strip())
                 else:
                     current += " " + line.strip()
             if current:
-                results[current] = self.answer(current)
+                sol = self.answer(current)
+                results[current] = self._format_worksheet_answer(current, sol)
                 current = ""
         return results
 
