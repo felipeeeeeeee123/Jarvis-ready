@@ -6,6 +6,7 @@ from utils.memory import MemoryManager
 from .qa_memory import QAMemory
 from .evaluator import Evaluator
 from .web_search import web_search
+from .engineering_expert import EngineeringExpert
 
 openai = None
 
@@ -25,6 +26,16 @@ class AIBrain:
 
     def ask(self, prompt: str) -> str:
         self.memory.memory["last_prompt"] = prompt
+        if EngineeringExpert.is_engineering_question(prompt):
+            expert = EngineeringExpert()
+            answer = expert.answer(prompt)
+            self.memory.memory["last_answer"] = answer
+            self.memory.save()
+            score = self.evaluator.score(prompt, answer, "Ollama")
+            self.qa_memory.add(prompt, answer, "Ollama", score)
+            self.evaluator.update_leaderboard(prompt, score)
+            self.qa_memory.prune()
+            return answer
         try:
             if openai:
                 response = openai.ChatCompletion.create(
