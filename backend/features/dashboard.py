@@ -32,6 +32,13 @@ class TerminalDashboard(threading.Thread):
                 if total
                 else 0
             )
+            now = time.time()
+            review = [
+                e
+                for e in self.memory.data
+                if now - e.get("timestamp", 0) > 7 * 86400
+                or e.get("confidence", 1) < 0.5
+            ]
             unique_q = {e["question"] for e in self.memory.data}
             dup_rate = 1 - (len(unique_q) / total) if total else 0
             learning_rate = total / ((time.time() - self.start_time) / 60 + 1e-6)
@@ -43,8 +50,9 @@ class TerminalDashboard(threading.Thread):
             stdscr.addstr(3, 0, f"Token usage: {tokens}")
             stdscr.addstr(4, 0, f"Duplicate rate: {dup_rate:.2f}")
             stdscr.addstr(5, 0, f"Pruned: {self.memory.pruned_total}")
-            stdscr.addstr(6, 0, f"Active source: {active}")
-            stdscr.addstr(8, 0, "Commands: [p]ause/[r]esume [c]lear [q]uit")
+            stdscr.addstr(6, 0, f"Needs review: {len(review)}")
+            stdscr.addstr(7, 0, f"Active source: {active}")
+            stdscr.addstr(9, 0, "Commands: [p]ause/[r]esume [c]lear [q]uit")
             stdscr.refresh()
             ch = stdscr.getch()
             if ch != -1:
