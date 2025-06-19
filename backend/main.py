@@ -1,5 +1,6 @@
 from features.ai_brain import AIBrain
 from features.web_search import web_search
+from features.autotrade import run_autotrader
 
 def main():
     brain = AIBrain()
@@ -15,6 +16,10 @@ def main():
         if online_mode and prompt.lower().startswith("search:"):
             query = prompt.split("search:", 1)[-1].strip()
             response = web_search(query)
+        elif prompt.lower().startswith("trade"):
+            _, *symbols = prompt.split()
+            run_autotrader(symbols or None)
+            response = "Trade executed" 
         else:
             response = brain.ask(prompt)
 
