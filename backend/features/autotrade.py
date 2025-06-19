@@ -1,5 +1,4 @@
 import os
-import time
 from datetime import datetime
 import pandas as pd
 from alpaca_trade_api import REST, TimeFrame
@@ -58,11 +57,11 @@ def execute_trade(symbol: str) -> None:
         return
     action = trade_signal(symbol)
     if action == "buy":
-        order = aip.submit_order(symbol, qty, "buy", "market", "gtc")
+        aip.submit_order(symbol, qty, "buy", "market", "gtc")
         memory.set_cooldown(symbol)
         send_telegram_alert(f"Bought {qty} {symbol} @ {last_price}")
     elif action == "sell":
-        order = aip.submit_order(symbol, qty, "sell", "market", "gtc")
+        aip.submit_order(symbol, qty, "sell", "market", "gtc")
         memory.set_cooldown(symbol)
         send_telegram_alert(f"Sold {qty} {symbol} @ {last_price}")
 
