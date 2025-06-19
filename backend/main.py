@@ -1,6 +1,8 @@
 from features.ai_brain import AIBrain
 from features.web_search import web_search
 from features.autotrade import run_autotrader
+from features.self_reflect import SelfReflection
+from features.dashboard import TerminalDashboard
 
 import subprocess
 import threading
@@ -65,6 +67,10 @@ def main():
         target=monitor_autotrain, args=(stop_event,), daemon=True
     )
     monitor_thread.start()
+    reflect_thread = SelfReflection()
+    dashboard_thread = TerminalDashboard()
+    reflect_thread.start()
+    dashboard_thread.start()
 
     try:
         while True:
@@ -82,10 +88,18 @@ def main():
                 response = "Trade executed"
             else:
                 response = brain.ask(prompt)
-
+            
+            if response.startswith("[Error"):
+                dashboard_thread.fail += 1
+            else:
+                dashboard_thread.success += 1
             print(f"🤖 JARVIS: {response}")
     except KeyboardInterrupt:
         print("\n👋 JARVIS shutting down.")
     finally:
         stop_event.set()
+        reflect_thread.stop()
+        dashboard_thread.stop()
         monitor_thread.join()
+        reflect_thread.join()
+        dashboard_thread.join()

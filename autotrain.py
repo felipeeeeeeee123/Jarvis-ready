@@ -7,6 +7,9 @@ from pathlib import Path
 
 from backend.features.ai_brain import AIBrain
 from backend.features.web_search import web_search
+from backend.features.trending import TrendingTopics
+from backend.features.qa_memory import QAMemory
+from backend.features.evaluator import Evaluator
 
 TRAINING_PATH = Path("data/training_data.csv")
 BACKUP_PATH = Path("data/memory_backup.json")
@@ -34,6 +37,9 @@ QUESTION_TEMPLATES = [
 class SyntheticTrainer:
     def __init__(self):
         self.brain = AIBrain()
+        self.trending = TrendingTopics()
+        self.memory = QAMemory()
+        self.evaluator = Evaluator()
         self.seen = set()
         self.buffer = []
         self.load_memory()
@@ -71,12 +77,16 @@ class SyntheticTrainer:
         with open(BACKUP_PATH, "w") as f:
             json.dump({"hashes": list(self.seen)}, f, indent=2)
         self.buffer = []
+        self.memory.prune()
 
-    @staticmethod
-    def generate_question() -> str:
+    def generate_question(self) -> str:
         template = random.choice(QUESTION_TEMPLATES)
-        topic = random.choice(SEED_TOPICS)
-        return template.format(topic)
+        topic = self.trending.random_topic()
+        q_prompt = f"Write a short question about: {topic}"
+        question = self.brain.ask(q_prompt)
+        if len(question.split()) > 20:
+            question = template.format(topic)
+        return question
 
     def ask_question(self, question: str) -> tuple[str, str]:
         try:
@@ -115,6 +125,9 @@ class SyntheticTrainer:
                     "confidence": f"{confidence:.2f}",
                 }
             )
+            score = self.evaluator.score(question, answer, source)
+            self.memory.add(question, answer, source, score)
+            self.evaluator.update_leaderboard(question, score)
             self.seen.add(qhash)
             counter += 1
             first_line = answer.splitlines()[0]
