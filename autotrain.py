@@ -5,13 +5,13 @@ import random
 import time
 from pathlib import Path
 
-PAUSE_FILE = Path("autotrain.pause")
-
 from backend.features.ai_brain import AIBrain
-from backend.features.web_search import web_search
-from backend.features.trending import TrendingTopics
-from backend.features.qa_memory import QAMemory
 from backend.features.evaluator import Evaluator
+from backend.features.qa_memory import QAMemory
+from backend.features.trending import TrendingTopics
+from backend.features.web_search import web_search
+
+PAUSE_FILE = Path("autotrain.pause")
 
 TRAINING_PATH = Path("data/training_data.csv")
 BACKUP_PATH = Path("data/memory_backup.json")

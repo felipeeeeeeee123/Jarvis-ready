@@ -19,6 +19,8 @@ from utils.memory import MemoryManager
 
 BLUEPRINT_DIR = "blueprints"
 os.makedirs(BLUEPRINT_DIR, exist_ok=True)
+SIMULATION_DIR = "simulations"
+os.makedirs(SIMULATION_DIR, exist_ok=True)
 
 
 class EngineeringExpert:
@@ -200,6 +202,20 @@ class EngineeringExpert:
         q = query.lower()
         return any(w in q for w in ["draw", "blueprint", "diagram"])
 
+    @staticmethod
+    def _is_simulation_request(query: str) -> bool:
+        q = query.lower()
+        keywords = [
+            "simulate",
+            "simulation",
+            "stress",
+            "current",
+            "voltage",
+            "thermal",
+            "heat",
+        ]
+        return any(k in q for k in keywords)
+
     def _generate_blueprint(self, query: str) -> str:
         q = query.lower()
         if "truss" in q:
@@ -253,6 +269,9 @@ class EngineeringExpert:
         path = os.path.join(BLUEPRINT_DIR, f"blueprint_{int(time.time()*1000)}.png")
         fig.savefig(path, bbox_inches="tight")
         plt.close(fig)
+        self.memory.memory["last_blueprint"] = path
+        self.memory.memory["last_blueprint_prompt"] = f"truss with {joints} joints"
+        self.memory.save()
         return f"Blueprint saved to {path}\n![blueprint]({path})"
 
     def _draw_beam(self, spans: int, length: float) -> str:
@@ -266,6 +285,9 @@ class EngineeringExpert:
         path = os.path.join(BLUEPRINT_DIR, f"blueprint_{int(time.time()*1000)}.png")
         fig.savefig(path, bbox_inches="tight")
         plt.close(fig)
+        self.memory.memory["last_blueprint"] = path
+        self.memory.memory["last_blueprint_prompt"] = f"beam with {spans} spans"
+        self.memory.save()
         return f"Blueprint saved to {path}\n![blueprint]({path})"
 
     def _draw_circuit(self, components: int) -> str:
@@ -282,6 +304,9 @@ class EngineeringExpert:
         path = os.path.join(BLUEPRINT_DIR, f"blueprint_{int(time.time()*1000)}.png")
         fig.savefig(path, bbox_inches="tight")
         plt.close(fig)
+        self.memory.memory["last_blueprint"] = path
+        self.memory.memory["last_blueprint_prompt"] = f"circuit with {components} components"
+        self.memory.save()
         return f"Blueprint saved to {path}\n![blueprint]({path})"
 
     def _draw_pcb(self, components: int) -> str:
@@ -297,6 +322,9 @@ class EngineeringExpert:
         path = os.path.join(BLUEPRINT_DIR, f"blueprint_{int(time.time()*1000)}.png")
         fig.savefig(path, bbox_inches="tight")
         plt.close(fig)
+        self.memory.memory["last_blueprint"] = path
+        self.memory.memory["last_blueprint_prompt"] = f"pcb with {components} components"
+        self.memory.save()
         return f"Blueprint saved to {path}\n![blueprint]({path})"
 
     @classmethod
@@ -311,7 +339,9 @@ class EngineeringExpert:
         return False
 
     def answer(self, query: str) -> str:
-        if self._is_blueprint_request(query):
+        if self._is_simulation_request(query):
+            answer = self.simulate(query)
+        elif self._is_blueprint_request(query):
             answer = self._generate_blueprint(query)
         elif self._is_math_problem(query):
             answer = self._solve_symbolically(query)
@@ -455,3 +485,79 @@ class EngineeringExpert:
 
     def _answer_biomedical(self, query: str) -> str:
         return self._generic_answer(query, "biomedical engineering")
+
+    # --- Simulation Capabilities ---
+    def simulate(self, prompt: str) -> str:
+        """Run a simple physics simulation based on the prompt."""
+        q = prompt.lower()
+        if "thermal" in q or "heat" in q:
+            path = self._simulate_thermal(q)
+        elif "current" in q or "voltage" in q or "circuit" in q:
+            path = self._simulate_electrical(q)
+        else:
+            path = self._simulate_mechanical(q)
+        self.engineering_memory.add(prompt, f"Simulation saved to {path}", "Simulation", 1.0)
+        self.memory.memory["last_simulation"] = path
+        self.memory.save()
+        return f"Simulation saved to {path}\n![simulation]({path})"
+
+    def _simulate_mechanical(self, q: str) -> str:
+        length = 1.0
+        force = 1000.0
+        m = re.search(r"(\d+(?:\.\d+)?)\s*m", q)
+        if m:
+            length = float(m.group(1))
+        fm = re.search(r"(\d+(?:\.\d+)?)\s*n", q)
+        if fm:
+            force = float(fm.group(1))
+        x = np.linspace(0, length, 100)
+        inertia = 1e-6
+        h = 0.1
+        stress = force * (length - x) * (h / 2) / inertia
+        fig, ax = plt.subplots()
+        ax.plot(x, stress)
+        ax.set_xlabel("Position (m)")
+        ax.set_ylabel("Stress")
+        path = os.path.join(SIMULATION_DIR, f"mechanical_{int(time.time()*1000)}.png")
+        fig.savefig(path, bbox_inches="tight")
+        plt.close(fig)
+        return path
+
+    def _simulate_electrical(self, q: str) -> str:
+        voltage = 5.0
+        resistors = re.findall(r"(\d+(?:\.\d+)?)\s*ohm", q)
+        values = [float(r) for r in resistors] if resistors else [1.0, 1.0]
+        vm = re.search(r"(\d+(?:\.\d+)?)\s*v", q)
+        if vm:
+            voltage = float(vm.group(1))
+        total_r = sum(values)
+        current = voltage / total_r
+        drops = [current * r for r in values]
+        fig, ax = plt.subplots()
+        ax.bar(range(1, len(drops) + 1), drops)
+        ax.set_xlabel("Resistor")
+        ax.set_ylabel("Voltage Drop (V)")
+        path = os.path.join(SIMULATION_DIR, f"electrical_{int(time.time()*1000)}.png")
+        fig.savefig(path, bbox_inches="tight")
+        plt.close(fig)
+        return path
+
+    def _simulate_thermal(self, q: str) -> str:
+        length = 1.0
+        t1, t2 = 100.0, 0.0
+        lm = re.search(r"(\d+(?:\.\d+)?)\s*m", q)
+        if lm:
+            length = float(lm.group(1))
+        tmatch = re.findall(r"(\d+(?:\.\d+)?)\s*c", q)
+        if len(tmatch) >= 2:
+            t1, t2 = float(tmatch[0]), float(tmatch[1])
+        x = np.linspace(0, length, 50)
+        temp = t1 + (t2 - t1) * x / length
+        fig, ax = plt.subplots()
+        ax.plot(x, temp)
+        ax.set_xlabel("Position (m)")
+        ax.set_ylabel("Temperature (C)")
+        path = os.path.join(SIMULATION_DIR, f"thermal_{int(time.time()*1000)}.png")
+        fig.savefig(path, bbox_inches="tight")
+        plt.close(fig)
+        return path
