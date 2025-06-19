@@ -1,2 +1,1 @@
-mkdir data
-echo {} > data/memory.json
+{}
