@@ -11,6 +11,16 @@ import matplotlib
 import cv2
 import networkx as nx
 
+try:
+    import bpy  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    bpy = None
+
+try:
+    import plotly.graph_objects as go  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    go = None
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
@@ -23,6 +33,8 @@ BLUEPRINT_DIR = "blueprints"
 os.makedirs(BLUEPRINT_DIR, exist_ok=True)
 SIMULATION_DIR = "simulations"
 os.makedirs(SIMULATION_DIR, exist_ok=True)
+MODEL_DIR = "models"
+os.makedirs(MODEL_DIR, exist_ok=True)
 
 
 class EngineeringExpert:
@@ -508,22 +520,35 @@ class EngineeringExpert:
         """Run a simple physics simulation based on the prompt."""
         q = prompt.lower()
         field = self._detect_field(q)
-        method = getattr(self, f"_simulate_{field}", self._simulate_mechanical)
-        result, path, fail = method(q)
+        if "flow" in q or "fluid" in q:
+            method = self._simulate_fluid_flow
+        else:
+            method = getattr(self, f"_simulate_{field}", self._simulate_mechanical)
+        result_tuple = method(q)
+        if len(result_tuple) == 4:
+            result, path, model, fail = result_tuple
+        else:
+            result, path, fail = result_tuple
+            model = None
         self.engineering_memory.add(prompt, result, "Simulation", 1.0)
         self.memory.memory["last_simulation"] = path
+        if model:
+            self.memory.memory["last_model"] = model
         self.memory.save()
         entry = {
             "prompt": prompt,
             "field": field,
             "result": result,
             "path": path,
+            "model": model,
             "timestamp": time.time(),
         }
         sims = self.sim_index.memory.setdefault("simulations", [])
         sims.append(entry)
         self.sim_index.save()
         msg = f"{result}\nSimulation saved to {path}\n![simulation]({path})"
+        if model:
+            msg += f"\n3D model saved to {model}"
         if fail:
             msg += f"\n**Failure detected. Suggestion:** {self._suggest_fix(field)}"
         return msg
@@ -540,7 +565,39 @@ class EngineeringExpert:
         }
         return fixes.get(field, "Review design parameters")
 
-    def _simulate_mechanical(self, q: str) -> Tuple[str, str, bool]:
+    def _create_beam_model(self, length: float, height: float) -> str:
+        """Create a simple 3D beam model using Blender and export as GLB."""
+        if bpy is None:  # pragma: no cover - optional dependency
+            return ""
+        bpy.ops.wm.read_factory_settings(use_empty=True)
+        mesh = bpy.data.meshes.new("Beam")
+        verts = [
+            (0, 0, 0),
+            (length, 0, 0),
+            (length, height, 0),
+            (0, height, 0),
+            (0, 0, height / 10),
+            (length, 0, height / 10),
+            (length, height, height / 10),
+            (0, height, height / 10),
+        ]
+        faces = [
+            (0, 1, 2, 3),
+            (4, 5, 6, 7),
+            (0, 1, 5, 4),
+            (1, 2, 6, 5),
+            (2, 3, 7, 6),
+            (3, 0, 4, 7),
+        ]
+        mesh.from_pydata(verts, [], faces)
+        obj = bpy.data.objects.new("Beam", mesh)
+        bpy.context.scene.collection.objects.link(obj)
+        glb_path = os.path.join(MODEL_DIR, f"beam_{int(time.time()*1000)}.glb")
+        bpy.ops.export_scene.gltf(filepath=glb_path, export_format="GLB")
+        bpy.ops.wm.read_factory_settings(use_empty=True)
+        return glb_path
+
+    def _simulate_mechanical(self, q: str) -> Tuple[str, str, str, bool]:
         length = 1.0
         force = 1000.0
         m = re.search(r"(\d+(?:\.\d+)?)\s*m", q)
@@ -557,12 +614,17 @@ class EngineeringExpert:
         ax.plot(x, stress)
         ax.set_xlabel("Position (m)")
         ax.set_ylabel("Stress")
-        path = os.path.join(SIMULATION_DIR, f"mechanical_{int(time.time()*1000)}.png")
-        fig.savefig(path, bbox_inches="tight")
+        img_path = os.path.join(SIMULATION_DIR, f"mechanical_{int(time.time()*1000)}.png")
+        fig.savefig(img_path, bbox_inches="tight")
         plt.close(fig)
+        model_path = ""
+        try:
+            model_path = self._create_beam_model(length, h)
+        except Exception:
+            model_path = ""
         fail = stress.max() > 2.5e8
         result = f"Max stress: {stress.max():.2f} Pa"
-        return result, path, fail
+        return result, img_path, model_path, fail
 
     def _simulate_electrical(self, q: str) -> Tuple[str, str, bool]:
         voltage = 5.0
@@ -710,3 +772,36 @@ class EngineeringExpert:
         fail = freq > 5
         result = f"Throughput: {ops:.2e} ops/s"
         return result, path, fail
+
+    def _simulate_fluid_flow(self, q: str) -> Tuple[str, str, bool]:
+        """Generate a simple laminar flow visualization using Plotly."""
+        width = 1.0
+        height = 1.0
+        wm = re.search(r"(\d+(?:\.\d+)?)\s*m", q)
+        if wm:
+            width = float(wm.group(1))
+        hm = re.search(r"(\d+(?:\.\d+)?)\s*m", q)
+        if hm:
+            height = float(hm.group(1))
+        x = np.linspace(0, width, 30)
+        y = np.linspace(0, height, 30)
+        X, Y = np.meshgrid(x, y)
+        vmax = 1.0
+        velocity = 4 * vmax * (Y / height) * (1 - Y / height)
+        if go is None:  # pragma: no cover - optional dependency
+            fig, ax = plt.subplots()
+            c = ax.pcolormesh(X, Y, velocity, shading="auto")
+            fig.colorbar(c, ax=ax)
+            img_path = os.path.join(SIMULATION_DIR, f"fluid_{int(time.time()*1000)}.png")
+            fig.savefig(img_path, bbox_inches="tight")
+            plt.close(fig)
+        else:
+            fig = go.Figure(data=go.Heatmap(z=velocity, x=x, y=y, colorscale="Viridis"))
+            img_path = os.path.join(SIMULATION_DIR, f"fluid_{int(time.time()*1000)}.png")
+            try:
+                fig.write_image(img_path)
+            except Exception:
+                fig.write_html(img_path.replace(".png", ".html"))
+        fail = False
+        result = f"Max velocity: {velocity.max():.2f} m/s"
+        return result, img_path, fail
