@@ -23,7 +23,9 @@ def _display_model(path: str) -> None:
     except Exception:
         st.write("Preview unavailable. Download below.")
         with open(path, "rb") as f:
-            st.download_button("Download model", data=f.read(), file_name=os.path.basename(path))
+            st.download_button(
+                "Download model", data=f.read(), file_name=os.path.basename(path)
+            )
 
 
 def show_dashboard():
@@ -95,6 +97,42 @@ def show_dashboard():
                 file_name=os.path.basename(sim["path"]),
             ):
                 pass
+
+    st.header("Multi-Sim Comparison")
+    all_sims = sim_mem.memory.get("simulations", [])
+    sim_map = {s["uuid"]: s for s in all_sims}
+    selection = st.multiselect(
+        "Select up to 3 simulations",
+        list(sim_map.keys()),
+        format_func=lambda x: sim_map[x]["prompt"],
+        max_selections=3,
+    )
+    if selection:
+        cols = st.columns(len(selection))
+        for col, sid in zip(cols, selection):
+            sim = sim_map[sid]
+            with col:
+                st.markdown(f"**{sim['prompt']}**")
+                view = st.radio(
+                    "View",
+                    ["2D Plot", "3D Model"],
+                    key=f"view_{sid}",
+                )
+                if view == "3D Model" and sim.get("model"):
+                    _display_model(sim["model"])
+                else:
+                    st.image(sim.get("path", ""))
+                st.write(sim.get("result", ""))
+                new_prompt = st.text_input(
+                    "Edit prompt",
+                    value=sim["prompt"],
+                    key=f"edit_{sid}",
+                )
+                if st.button("Run", key=f"run_{sid}"):
+                    from features.engineering_expert import EngineeringExpert
+
+                    expert = EngineeringExpert()
+                    st.markdown(expert.simulate(new_prompt))
 
 
 if __name__ == "__main__":
