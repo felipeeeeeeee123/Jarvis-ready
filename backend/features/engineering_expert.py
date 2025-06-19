@@ -4,12 +4,11 @@ import time
 import requests
 from typing import Callable, List, Tuple
 import re
+from uuid import uuid4
 from difflib import SequenceMatcher
 import fitz
 import sympy as sp
 import matplotlib
-import cv2
-import networkx as nx
 
 try:
     import bpy  # type: ignore
@@ -536,6 +535,7 @@ class EngineeringExpert:
             self.memory.memory["last_model"] = model
         self.memory.save()
         entry = {
+            "uuid": str(uuid4()),
             "prompt": prompt,
             "field": field,
             "result": result,
@@ -614,7 +614,9 @@ class EngineeringExpert:
         ax.plot(x, stress)
         ax.set_xlabel("Position (m)")
         ax.set_ylabel("Stress")
-        img_path = os.path.join(SIMULATION_DIR, f"mechanical_{int(time.time()*1000)}.png")
+        img_path = os.path.join(
+            SIMULATION_DIR, f"mechanical_{int(time.time()*1000)}.png"
+        )
         fig.savefig(img_path, bbox_inches="tight")
         plt.close(fig)
         model_path = ""
@@ -680,8 +682,8 @@ class EngineeringExpert:
             span = float(sm.group(1))
         x = np.linspace(0, span, 50)
         E = 2e11
-        I = 1e-4
-        y = load * x**2 * (3 * span - x) / (6 * E * I)
+        moment_of_inertia = 1e-4
+        y = load * x**2 * (3 * span - x) / (6 * E * moment_of_inertia)
         fig, ax = plt.subplots()
         ax.plot(x, y)
         ax.set_xlabel("Position (m)")
@@ -792,12 +794,16 @@ class EngineeringExpert:
             fig, ax = plt.subplots()
             c = ax.pcolormesh(X, Y, velocity, shading="auto")
             fig.colorbar(c, ax=ax)
-            img_path = os.path.join(SIMULATION_DIR, f"fluid_{int(time.time()*1000)}.png")
+            img_path = os.path.join(
+                SIMULATION_DIR, f"fluid_{int(time.time()*1000)}.png"
+            )
             fig.savefig(img_path, bbox_inches="tight")
             plt.close(fig)
         else:
             fig = go.Figure(data=go.Heatmap(z=velocity, x=x, y=y, colorscale="Viridis"))
-            img_path = os.path.join(SIMULATION_DIR, f"fluid_{int(time.time()*1000)}.png")
+            img_path = os.path.join(
+                SIMULATION_DIR, f"fluid_{int(time.time()*1000)}.png"
+            )
             try:
                 fig.write_image(img_path)
             except Exception:
