@@ -1,9 +1,12 @@
 import json
 import os
 import time
+import sys
 import tkinter as tk
 from tkinter import messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from gui.handlers.ai_handler import (
     ask_ai,
