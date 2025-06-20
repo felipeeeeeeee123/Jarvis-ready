@@ -8,15 +8,30 @@ import subprocess
 import requests
 import time
 from datetime import date
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Any
 
 from .memory_handler import top_memories, mark_used
 from .memory_handler import feedback_memories
 from .strategy_handler import load_stats, STRATEGIES
 
 
-# Local model name for Ollama. Replace with your fine-tuned model
-OLLAMA_MODEL = "jarvisbrain"
+CONFIG_PATH = "config.json"
+
+
+def _load_model() -> str:
+    """Return model name from config.json or default."""
+    if os.path.exists(CONFIG_PATH):
+        try:
+            with open(CONFIG_PATH, "r") as f:
+                data = json.load(f)
+                if isinstance(data, dict) and data.get("model"):
+                    return str(data["model"])
+        except Exception:
+            pass
+    return "jarvisbrain"
+
+
+OLLAMA_MODEL = _load_model()
 ENDPOINT = "http://localhost:11434/api/generate"
 
 # history of user commands

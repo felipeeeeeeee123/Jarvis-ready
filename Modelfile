@@ -1,0 +1,3 @@
+FROM mistral
+ADAPTER my-finetune
+SYSTEM "You are Felipe Ruiz's personal AI."
