@@ -5,19 +5,31 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 
+from gui.handlers.ai_handler import ask_ai
+from gui.handlers.memory_handler import export_memory, search_memory, top_memories
+from gui.handlers.strategy_handler import (
+    STRATEGIES,
+    load_stats,
+    pnl_history,
+    switch_strategy,
+    toggle_auto,
+    AUTO_MODE,
+)
 
-DATA_PATH = "data/strategy_stats.json"
-MEMORY_PATH = "data/memory.json"
+CONFIG_PATH = "config.json"
 
 
 class JarvisGUI(tk.Tk):
-    """Simple dashboard showing recent memories and strategy stats."""
+    """AI Operating System dashboard."""
 
     def __init__(self) -> None:
         super().__init__()
         self.title("JARVIS Command Center")
-        self.geometry("800x600")
+        self.geometry("900x700")
         self.configure(bg="#121212")
+
+        self.config_data = self._load_config()
+        self.current_strategy = self.config_data.get("default_strategy", STRATEGIES[0])
 
         title = tk.Label(
             self,
@@ -31,23 +43,17 @@ class JarvisGUI(tk.Tk):
         self.memory_frame = self._create_section("Top Memories")
         self.strategy_frame = self._create_section("Strategy Stats")
 
-        self.button_frame = tk.Frame(self, bg="#121212")
-        self.button_frame.pack(pady=5)
+        self.toolbar = tk.Frame(self, bg="#121212")
+        self.toolbar.pack(fill="x", pady=5)
 
-        self.pause_btn = ttk.Button(
-            self.button_frame, text="Pause Trading", command=self.pause_trading
-        )
-        self.switch_btn = ttk.Button(
-            self.button_frame, text="Switch Strategy", command=self.switch_strategy
-        )
-        self.dump_btn = ttk.Button(
-            self.button_frame, text="Dump Memory", command=self.dump_memory
-        )
-        for btn in (self.pause_btn, self.switch_btn, self.dump_btn):
-            btn.pack(side="left", padx=5)
-
-        self.refresh_btn = ttk.Button(self, text="\N{CLOCKWISE OPEN CIRCLE ARROW} Refresh", command=self.load_data)
-        self.refresh_btn.pack(pady=10)
+        self.pause_btn = ttk.Button(self.toolbar, text="Pause Trading", command=self.pause_trading)
+        self.pause_btn.pack(side="left", padx=5)
+        self.switch_btn = ttk.Button(self.toolbar, text="Switch Strategy", command=self.switch_strategy_cmd)
+        self.switch_btn.pack(side="left", padx=5)
+        self.dump_btn = ttk.Button(self.toolbar, text="Dump Memory", command=self.dump_memory)
+        self.dump_btn.pack(side="left", padx=5)
+        self.refresh_btn = ttk.Button(self.toolbar, text="\N{CLOCKWISE OPEN CIRCLE ARROW} Refresh", command=self.load_data)
+        self.refresh_btn.pack(side="left", padx=5)
 
         self.chat_frame = tk.LabelFrame(
             self,
@@ -78,7 +84,33 @@ class JarvisGUI(tk.Tk):
         send_btn = ttk.Button(entry_frame, text="Send", command=self.send_chat)
         send_btn.pack(side="left")
 
+        # Memory search and export
+        search_bar = tk.Frame(self.memory_frame, bg="#1e1e1e")
+        search_bar.pack(fill="x", padx=5, pady=(0, 5))
+        self.search_entry = ttk.Entry(search_bar)
+        self.search_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        ttk.Button(search_bar, text="Search", command=self.search_memories).pack(side="left")
+        ttk.Button(search_bar, text="Export", command=self.export_mem).pack(side="left")
+
+        # Strategy controls
+        controls = tk.Frame(self.strategy_frame, bg="#1e1e1e")
+        controls.pack(fill="x", padx=5, pady=(0, 5))
+        self.strategy_var = tk.StringVar(value=self.current_strategy)
+        self.strategy_dd = ttk.Combobox(controls, values=STRATEGIES, textvariable=self.strategy_var, state="readonly")
+        self.strategy_dd.pack(side="left", padx=(0,5))
+        self.strategy_dd.bind("<<ComboboxSelected>>", lambda e: self.load_data())
+        self.auto_var = tk.BooleanVar(value=self.config_data.get("auto_mode", True))
+        auto_btn = ttk.Checkbutton(controls, text="Auto Mode", variable=self.auto_var, command=self.toggle_auto_mode)
+        auto_btn.pack(side="left")
+        ttk.Button(controls, text="Show Graph", command=self.show_graph).pack(side="left", padx=5)
+
+        self.console = ScrolledText(self, height=5, bg="#000", fg="white", state="disabled")
+        self.console.pack(fill="both", padx=10, pady=5)
+
         self.load_data()
+
+        self.bind_all("<Control-r>", lambda e: self.load_data())
+        self.bind_all("<Control-m>", lambda e: self.dump_memory())
 
     def _create_section(self, title: str) -> tk.LabelFrame:
         frame = tk.LabelFrame(
@@ -106,64 +138,44 @@ class JarvisGUI(tk.Tk):
         self.memory_frame.listbox.delete(0, tk.END)
         self.strategy_frame.listbox.delete(0, tk.END)
 
-        # Load memories
-        if os.path.exists(MEMORY_PATH):
-            try:
-                with open(MEMORY_PATH, "r") as f:
-                    memories = json.load(f)
-            except Exception:
-                memories = []
-            top_memories: list[dict] = []
-            if isinstance(memories, list):
-                top_memories = sorted(memories, key=lambda m: m.get("importance", 1), reverse=True)[:5]
-            elif isinstance(memories, dict):
-                for ticker, info in memories.items():
-                    if ticker in {"stats", "cooldowns"}:
-                        continue
-                    top_memories.append({"timestamp": ticker, "event": f"{info.get('total_profit', 0.0):.2f} P/L"})
-                top_memories = top_memories[:5]
-            for mem in top_memories:
-                ts = self._format_timestamp(mem.get("timestamp"))
-                event = mem.get("event", "")
-                self.memory_frame.listbox.insert(tk.END, f"{ts} — {event}")
+        for i, mem in enumerate(top_memories(5)):
+            ts = self._format_timestamp(mem.get("timestamp"))
+            event = mem.get("event", "")
+            tag = " \N{FIRE}" if i < 3 else ""
+            self.memory_frame.listbox.insert(tk.END, f"{ts} — {event}{tag}")
 
-        # Load strategy stats
-        if os.path.exists(DATA_PATH):
-            try:
-                with open(DATA_PATH, "r") as f:
-                    stats = json.load(f)
-            except Exception:
-                stats = {}
-            if isinstance(stats, dict):
-                for strat, data in stats.items():
-                    wins = data.get("wins", 0)
-                    losses = data.get("losses", 0)
-                    pnl = data.get("pnl", 0.0)
-                    self.strategy_frame.listbox.insert(
-                        tk.END,
-                        f"{strat}: W {wins}, L {losses}, PnL ${pnl:.2f}",
-                    )
+        stats = load_stats().get(self.strategy_var.get(), {})
+        wins = stats.get("wins", 0)
+        losses = stats.get("losses", 0)
+        pnl = stats.get("pnl", 0.0)
+        self.strategy_frame.listbox.insert(
+            tk.END,
+            f"{self.strategy_var.get()}: W {wins}, L {losses}, PnL ${pnl:.2f}",
+        )
 
     def pause_trading(self) -> None:
         self.paused = not getattr(self, "paused", False)
         state = "paused" if self.paused else "resumed"
         self.pause_btn.config(text="Resume Trading" if self.paused else "Pause Trading")
-        messagebox.showinfo("Trading", f"Trading {state}.")
+        self._log(f"Trading {state}.")
 
-    def switch_strategy(self) -> None:
-        messagebox.showinfo("Strategy", "Switching strategy (not implemented).")
+    def switch_strategy_cmd(self) -> None:
+        old = self.strategy_var.get()
+        new = switch_strategy(old)
+        self.strategy_var.set(new)
+        self.current_strategy = new
+        self._log(f"Strategy switched to {new}.")
+        self.load_data()
 
     def dump_memory(self) -> None:
-        if os.path.exists(MEMORY_PATH):
-            with open(MEMORY_PATH, "r") as f:
-                data = json.load(f)
-            path = "memory_dump.json"
-            with open(path, "w") as f:
-                json.dump(data, f, indent=2)
-            messagebox.showinfo("Memory Dump", f"Memory dumped to {path}.")
+        path = export_memory()
+        self._log(f"Memory exported to {path}")
 
-    def fake_ai_response(self, msg: str) -> str:
-        return f"Simulated reply to: {msg}"
+    def _log(self, text: str) -> None:
+        self.console.configure(state="normal")
+        self.console.insert(tk.END, text + "\n")
+        self.console.see(tk.END)
+        self.console.configure(state="disabled")
 
     def _append_chat(self, speaker: str, text: str) -> None:
         self.chat_log.configure(state="normal")
@@ -171,14 +183,70 @@ class JarvisGUI(tk.Tk):
         self.chat_log.see(tk.END)
         self.chat_log.configure(state="disabled")
 
+    def _typewriter(self, text: str, idx: int = 0) -> None:
+        if idx < len(text):
+            self.chat_log.configure(state="normal")
+            self.chat_log.insert(tk.END, text[idx])
+            self.chat_log.see(tk.END)
+            self.chat_log.configure(state="disabled")
+            self.after(25, self._typewriter, text, idx + 1)
+        else:
+            self.chat_log.configure(state="normal")
+            self.chat_log.insert(tk.END, "\n")
+            self.chat_log.configure(state="disabled")
+
     def send_chat(self, event=None) -> None:
         msg = self.chat_entry.get().strip()
         if not msg:
             return
         self.chat_entry.delete(0, tk.END)
         self._append_chat("You", msg)
-        resp = self.fake_ai_response(msg)
-        self._append_chat("AI", resp)
+        self.chat_log.configure(state="normal")
+        self.chat_log.insert(tk.END, "AI: ")
+        self.chat_log.configure(state="disabled")
+        resp = ask_ai(msg)
+        self._typewriter(resp)
+
+    def search_memories(self) -> None:
+        query = self.search_entry.get().strip()
+        self.memory_frame.listbox.delete(0, tk.END)
+        for mem in search_memory(query):
+            ts = self._format_timestamp(mem.get("timestamp"))
+            event = mem.get("event", "")
+            self.memory_frame.listbox.insert(tk.END, f"{ts} — {event}")
+
+    def export_mem(self) -> None:
+        path = export_memory()
+        self._log(f"Memory exported to {path}")
+
+    def toggle_auto_mode(self) -> None:
+        toggle_auto()
+        state = "on" if AUTO_MODE else "off"
+        self._log(f"Auto mode {state}")
+
+    def show_graph(self) -> None:
+        import matplotlib.pyplot as plt
+
+        data = pnl_history(self.strategy_var.get())
+        if not data:
+            messagebox.showinfo("Graph", "No history available")
+            return
+        plt.figure(figsize=(4, 3))
+        plt.plot(data)
+        plt.title(f"{self.strategy_var.get()} PnL")
+        plt.xlabel("Trade")
+        plt.ylabel("PnL")
+        plt.tight_layout()
+        plt.show()
+
+    def _load_config(self) -> dict:
+        if os.path.exists(CONFIG_PATH):
+            try:
+                with open(CONFIG_PATH, "r") as f:
+                    return json.load(f)
+            except Exception:
+                return {}
+        return {}
 
 
 if __name__ == "__main__":
