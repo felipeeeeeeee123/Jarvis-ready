@@ -5,6 +5,7 @@ import os
 import subprocess
 import json
 import time
+import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
@@ -105,13 +106,16 @@ class JarvisGUI(tk.Tk):
 
         self.chat_log = ScrolledText(
             self.chat_frame,
-            font=("Consolas", 12),
+            font=("Helvetica", 12),
             height=8,
             bg="#111",
-            fg="lime",
+            fg="white",
             wrap="word",
             state="disabled",
         )
+        self.chat_log.tag_config("user", foreground="#00FF7F")
+        self.chat_log.tag_config("ai", foreground="#1E90FF")
+        self.chat_log.tag_config("thinking", foreground="#888888", font=("Helvetica", 12, "italic"))
         self.chat_log.pack(fill="both", expand=True, padx=5, pady=5)
 
         entry_frame = tk.Frame(self.chat_frame, bg="#1e1e1e")
@@ -230,9 +234,11 @@ class JarvisGUI(tk.Tk):
         self.console.see(tk.END)
         self.console.configure(state="disabled")
 
-    def _append_chat(self, speaker: str, text: str) -> None:
+    def _append_chat(self, speaker: str, text: str, tag: str = "", newline: bool = True) -> None:
         self.chat_log.configure(state="normal")
-        self.chat_log.insert(tk.END, f"{speaker}: {text}\n")
+        tag_name = tag or ("user" if speaker == "You" else "ai")
+        ending = "\n" if newline else ""
+        self.chat_log.insert(tk.END, f"{speaker}: {text}{ending}", tag_name)
         self.chat_log.see(tk.END)
         self.chat_log.configure(state="disabled")
 
@@ -271,12 +277,25 @@ class JarvisGUI(tk.Tk):
             return
 
         self._append_chat("You", msg)
+        self._append_chat("AI", "Thinking...", tag="thinking")
+
+        def worker() -> None:
+            resp = ask_ai(msg)
+            self.last_memories = last_context().get("top_memories", []) if last_context() else []
+            self.after(0, lambda: self._display_response(resp))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _display_response(self, text: str) -> None:
+        # remove last thinking line
         self.chat_log.configure(state="normal")
-        self.chat_log.insert(tk.END, "AI: ")
+        if self.chat_log.get("end-2l", "end-1c").strip() == "AI: Thinking...":
+            start = "end-2l linestart"
+            end = "end-1c"
+            self.chat_log.delete(start, end)
         self.chat_log.configure(state="disabled")
-        resp = ask_ai(msg)
-        self.last_memories = last_context().get("top_memories", []) if last_context() else []
-        self._typewriter(resp)
+        self._append_chat("AI", "", newline=False)
+        self._typewriter(text)
 
     def feedback(self, positive: bool) -> None:
         if not hasattr(self, "last_memories"):
