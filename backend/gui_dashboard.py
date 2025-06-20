@@ -27,7 +27,6 @@ REQUIRED_PACKAGES = [
     "python-dotenv",
 ]
 
-
 def ensure_packages_installed() -> None:
     """Install any missing dependencies on the fly."""
     for pkg in REQUIRED_PACKAGES:
@@ -38,17 +37,14 @@ def ensure_packages_installed() -> None:
             print(f"\U0001F4E6 Installing missing package: {pkg}")
             subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
 
-
 ensure_packages_installed()
 
 try:
-    import requests  # noqa: F401 - imported for side effects
-except ImportError as exc:  # pragma: no cover - runtime guard
-    raise ImportError(
-        "❌ Missing 'requests'. Activate your venv and run: pip install requests"
-    ) from exc
+    import requests  # noqa: F401
+except ImportError as exc:
+    raise ImportError("❌ Missing 'requests'. Activate your venv and run: pip install requests") from exc
 
-from gui.handlers.ai_handler import (  # noqa: E402
+from gui.handlers.ai_handler import (
     ask_ai,
     record_command,
     interpret_command,
@@ -56,8 +52,8 @@ from gui.handlers.ai_handler import (  # noqa: E402
     last_context,
     apply_feedback,
 )
-from gui.handlers.memory_handler import export_memory, search_memory, top_memories  # noqa: E402
-from gui.handlers.strategy_handler import (  # noqa: E402
+from gui.handlers.memory_handler import export_memory, search_memory, top_memories
+from gui.handlers.strategy_handler import (
     STRATEGIES,
     load_stats,
     pnl_history,
@@ -67,7 +63,6 @@ from gui.handlers.strategy_handler import (  # noqa: E402
 )
 
 CONFIG_PATH = "config.json"
-
 
 class JarvisGUI(tk.Tk):
     """AI Operating System dashboard."""
@@ -82,37 +77,16 @@ class JarvisGUI(tk.Tk):
         self.current_strategy = self.config_data.get("default_strategy", STRATEGIES[0])
         set_current_strategy(self.current_strategy)
 
-        title = tk.Label(
-            self,
-            text="JARVIS CORE DASHBOARD",
-            font=("Helvetica", 20),
-            fg="white",
-            bg="#121212",
-        )
+        title = tk.Label(self, text="JARVIS CORE DASHBOARD", font=("Helvetica", 20), fg="white", bg="#121212")
         title.pack(pady=10)
 
         self.memory_frame = self._create_section("Top Memories")
         self.strategy_frame = self._create_section("Strategy Stats")
 
-        self.chat_frame = tk.LabelFrame(
-            self,
-            text="AI Chatbot",
-            bg="#1e1e1e",
-            fg="white",
-            font=("Helvetica", 14),
-            bd=2,
-        )
+        self.chat_frame = tk.LabelFrame(self, text="AI Chatbot", bg="#1e1e1e", fg="white", font=("Helvetica", 14), bd=2)
         self.chat_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-        self.chat_log = ScrolledText(
-            self.chat_frame,
-            font=("Helvetica", 12),
-            height=8,
-            bg="#111",
-            fg="white",
-            wrap="word",
-            state="disabled",
-        )
+        self.chat_log = ScrolledText(self.chat_frame, font=("Helvetica", 12), height=8, bg="#111", fg="white", wrap="word", state="disabled")
         self.chat_log.tag_config("user", foreground="#00FF7F")
         self.chat_log.tag_config("ai", foreground="#1E90FF")
         self.chat_log.tag_config("thinking", foreground="#888888", font=("Helvetica", 12, "italic"))
@@ -140,7 +114,6 @@ class JarvisGUI(tk.Tk):
         self.refresh_btn = ttk.Button(self.toolbar, text="\N{CLOCKWISE OPEN CIRCLE ARROW} Refresh", command=self.load_data)
         self.refresh_btn.pack(side="left", padx=5)
 
-        # Memory search and export
         search_bar = tk.Frame(self.memory_frame, bg="#1e1e1e")
         search_bar.pack(fill="x", padx=5, pady=(0, 5))
         self.search_entry = ttk.Entry(search_bar)
@@ -148,7 +121,6 @@ class JarvisGUI(tk.Tk):
         ttk.Button(search_bar, text="Search", command=self.search_memories).pack(side="left")
         ttk.Button(search_bar, text="Export", command=self.export_mem).pack(side="left")
 
-        # Strategy controls
         controls = tk.Frame(self.strategy_frame, bg="#1e1e1e")
         controls.pack(fill="x", padx=5, pady=(0, 5))
         self.strategy_var = tk.StringVar(value=self.current_strategy)
@@ -169,14 +141,7 @@ class JarvisGUI(tk.Tk):
         self.bind_all("<Control-m>", lambda e: self.dump_memory())
 
     def _create_section(self, title: str) -> tk.LabelFrame:
-        frame = tk.LabelFrame(
-            self,
-            text=title,
-            bg="#1e1e1e",
-            fg="white",
-            font=("Helvetica", 14),
-            bd=2,
-        )
+        frame = tk.LabelFrame(self, text=title, bg="#1e1e1e", fg="white", font=("Helvetica", 14), bd=2)
         frame.pack(fill="both", expand=True, padx=10, pady=10)
         frame.listbox = tk.Listbox(frame, font=("Consolas", 12), height=10, bg="#222", fg="lime")
         frame.listbox.pack(fill="both", expand=True, padx=10, pady=10)
@@ -190,7 +155,6 @@ class JarvisGUI(tk.Tk):
             return str(ts)
 
     def load_data(self) -> None:
-        """Refresh listboxes with data from disk."""
         self.memory_frame.listbox.delete(0, tk.END)
         self.strategy_frame.listbox.delete(0, tk.END)
 
@@ -204,10 +168,7 @@ class JarvisGUI(tk.Tk):
         wins = stats.get("wins", 0)
         losses = stats.get("losses", 0)
         pnl = stats.get("pnl", 0.0)
-        self.strategy_frame.listbox.insert(
-            tk.END,
-            f"{self.strategy_var.get()}: W {wins}, L {losses}, PnL ${pnl:.2f}",
-        )
+        self.strategy_frame.listbox.insert(tk.END, f"{self.strategy_var.get()}: W {wins}, L {losses}, PnL ${pnl:.2f}")
 
     def pause_trading(self) -> None:
         self.paused = not getattr(self, "paused", False)
@@ -287,7 +248,6 @@ class JarvisGUI(tk.Tk):
         threading.Thread(target=worker, daemon=True).start()
 
     def _display_response(self, text: str) -> None:
-        # remove last thinking line
         self.chat_log.configure(state="normal")
         if self.chat_log.get("end-2l", "end-1c").strip() == "AI: Thinking...":
             start = "end-2l linestart"
@@ -323,7 +283,6 @@ class JarvisGUI(tk.Tk):
 
     def show_graph(self) -> None:
         import matplotlib.pyplot as plt
-
         data = pnl_history(self.strategy_var.get())
         if not data:
             messagebox.showinfo("Graph", "No history available")
@@ -344,7 +303,6 @@ class JarvisGUI(tk.Tk):
             except Exception:
                 return {}
         return {}
-
 
 if __name__ == "__main__":
     app = JarvisGUI()
