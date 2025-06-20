@@ -1,8 +1,12 @@
 import json
 import os
+import time
+from datetime import datetime
 from typing import Any, List, Dict
 
 MEMORY_PATH = "data/memory.json"
+DECAY_DAYS = 7
+DECAY_RATE = 0.1
 
 
 def load_memory() -> Any:
@@ -15,11 +19,29 @@ def load_memory() -> Any:
     return []
 
 
+def save_memory(data: Any) -> None:
+    with open(MEMORY_PATH, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def _apply_decay(mem: Dict[str, Any]) -> None:
+    """Decay importance if memory unused for a period."""
+    last = mem.get("last_used", mem.get("timestamp", 0))
+    age_days = (time.time() - float(last)) / 86400
+    if age_days > DECAY_DAYS:
+        decay = (age_days - DECAY_DAYS) * DECAY_RATE
+        mem["importance"] = max(mem.get("importance", 1) - decay, 0)
+
+
 def top_memories(n: int = 5) -> List[Dict[str, Any]]:
     data = load_memory()
     memories: List[Dict[str, Any]] = []
     if isinstance(data, list):
-        memories = sorted(data, key=lambda m: m.get("importance", 1), reverse=True)[:n]
+        for mem in data:
+            _apply_decay(mem)
+        data.sort(key=lambda m: m.get("importance", 1), reverse=True)
+        save_memory(data)
+        memories = data[:n]
     elif isinstance(data, dict):
         for ticker, info in data.items():
             if ticker in {"stats", "cooldowns"}:
@@ -45,6 +67,38 @@ def search_memory(keyword: str = "", start: float | None = None, end: float | No
             continue
         results.append(mem)
     return results
+
+
+def mark_used(memories: List[Dict[str, Any]]) -> None:
+    data = load_memory()
+    if not isinstance(data, list):
+        return
+    changed = False
+    for mem in data:
+        for m in memories:
+            if mem.get("timestamp") == m.get("timestamp"):
+                mem["importance"] = mem.get("importance", 1) + 1
+                mem["last_used"] = time.time()
+                changed = True
+    if changed:
+        save_memory(data)
+
+
+def feedback_memories(memories: List[Dict[str, Any]], positive: bool = True) -> None:
+    data = load_memory()
+    if not isinstance(data, list):
+        return
+    changed = False
+    for mem in data:
+        for m in memories:
+            if mem.get("timestamp") == m.get("timestamp"):
+                delta = 1 if positive else -1
+                mem["importance"] = max(mem.get("importance", 1) + delta, 0)
+                if not positive:
+                    mem["flagged"] = True
+                changed = True
+    if changed:
+        save_memory(data)
 
 
 def export_memory(path: str = "memory_export.json") -> str:
