@@ -93,18 +93,6 @@ class JarvisGUI(tk.Tk):
         self.memory_frame = self._create_section("Top Memories")
         self.strategy_frame = self._create_section("Strategy Stats")
 
-        self.toolbar = tk.Frame(self, bg="#121212")
-        self.toolbar.pack(fill="x", pady=5)
-
-        self.pause_btn = ttk.Button(self.toolbar, text="Pause Trading", command=self.pause_trading)
-        self.pause_btn.pack(side="left", padx=5)
-        self.switch_btn = ttk.Button(self.toolbar, text="Switch Strategy", command=self.switch_strategy_cmd)
-        self.switch_btn.pack(side="left", padx=5)
-        self.dump_btn = ttk.Button(self.toolbar, text="Dump Memory", command=self.dump_memory)
-        self.dump_btn.pack(side="left", padx=5)
-        self.refresh_btn = ttk.Button(self.toolbar, text="\N{CLOCKWISE OPEN CIRCLE ARROW} Refresh", command=self.load_data)
-        self.refresh_btn.pack(side="left", padx=5)
-
         self.chat_frame = tk.LabelFrame(
             self,
             text="AI Chatbot",
@@ -133,8 +121,20 @@ class JarvisGUI(tk.Tk):
         self.chat_entry.bind("<Return>", self.send_chat)
         send_btn = ttk.Button(entry_frame, text="Send", command=self.send_chat)
         send_btn.pack(side="left")
-        ttk.Button(entry_frame, text="👍", command=lambda: self.feedback(True)).pack(side="left", padx=(5,0))
+        ttk.Button(entry_frame, text="👍", command=lambda: self.feedback(True)).pack(side="left", padx=(5, 0))
         ttk.Button(entry_frame, text="👎", command=lambda: self.feedback(False)).pack(side="left")
+
+        self.toolbar = tk.Frame(self, bg="#121212")
+        self.toolbar.pack(fill="x", pady=5)
+
+        self.pause_btn = ttk.Button(self.toolbar, text="Pause Trading", command=self.pause_trading)
+        self.pause_btn.pack(side="left", padx=5)
+        self.switch_btn = ttk.Button(self.toolbar, text="Switch Strategy", command=self.switch_strategy_cmd)
+        self.switch_btn.pack(side="left", padx=5)
+        self.dump_btn = ttk.Button(self.toolbar, text="Dump Memory", command=self.dump_memory)
+        self.dump_btn.pack(side="left", padx=5)
+        self.refresh_btn = ttk.Button(self.toolbar, text="\N{CLOCKWISE OPEN CIRCLE ARROW} Refresh", command=self.load_data)
+        self.refresh_btn.pack(side="left", padx=5)
 
         # Memory search and export
         search_bar = tk.Frame(self.memory_frame, bg="#1e1e1e")
