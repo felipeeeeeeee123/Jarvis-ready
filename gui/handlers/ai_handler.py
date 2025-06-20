@@ -64,9 +64,10 @@ def _strategy_summary() -> str:
     if not stats and isinstance(data, dict):
         best, rate = CURRENT_STRATEGY, -1.0
         for name, info in data.items():
-            w, l = info.get("wins", 0), info.get("losses", 0)
-            total = w + l
-            win_rate = (w / total) if total else 0.0
+            wins = info.get("wins", 0)
+            losses = info.get("losses", 0)
+            total = wins + losses
+            win_rate = (wins / total) if total else 0.0
             if win_rate > rate:
                 best, rate, stats = name, win_rate, info
         CURRENT_STRATEGY = best

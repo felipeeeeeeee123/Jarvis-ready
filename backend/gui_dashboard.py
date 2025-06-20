@@ -41,13 +41,13 @@ def ensure_packages_installed() -> None:
 ensure_packages_installed()
 
 try:
-    import requests  # noqa: WPS433 - imported for side effects
+    import requests  # noqa: F401 - imported for side effects
 except ImportError as exc:  # pragma: no cover - runtime guard
     raise ImportError(
         "❌ Missing 'requests'. Activate your venv and run: pip install requests"
     ) from exc
 
-from gui.handlers.ai_handler import (
+from gui.handlers.ai_handler import (  # noqa: E402
     ask_ai,
     record_command,
     interpret_command,
@@ -55,8 +55,8 @@ from gui.handlers.ai_handler import (
     last_context,
     apply_feedback,
 )
-from gui.handlers.memory_handler import export_memory, search_memory, top_memories
-from gui.handlers.strategy_handler import (
+from gui.handlers.memory_handler import export_memory, search_memory, top_memories  # noqa: E402
+from gui.handlers.strategy_handler import (  # noqa: E402
     STRATEGIES,
     load_stats,
     pnl_history,
