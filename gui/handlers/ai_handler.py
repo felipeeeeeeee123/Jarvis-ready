@@ -15,7 +15,8 @@ from .memory_handler import feedback_memories
 from .strategy_handler import load_stats, STRATEGIES
 
 
-MODEL = "mistral"
+# Local model name for Ollama. Replace with your fine-tuned model
+OLLAMA_MODEL = "jarvisbrain"
 ENDPOINT = "http://localhost:11434/api/generate"
 
 # history of user commands
@@ -63,7 +64,7 @@ def ask_ai(prompt: str) -> str:
     _LAST_CONTEXT = context
     background = json.dumps(context, indent=2)
     payload = {
-        "model": MODEL,
+        "model": OLLAMA_MODEL,
         "prompt": f"Context:\n{background}\n\nUser: {prompt}\nAI:",
         "stream": False,
     }
@@ -79,7 +80,7 @@ def ask_ai(prompt: str) -> str:
     if "Error" in response_text:
         try:
             result = subprocess.run(
-                ["ollama", "run", MODEL, payload["prompt"]],
+                ["ollama", "run", OLLAMA_MODEL, payload["prompt"]],
                 capture_output=True,
                 text=True,
                 timeout=30,
