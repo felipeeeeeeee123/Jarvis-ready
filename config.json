@@ -1,0 +1,7 @@
+{
+  "theme": "dark",
+  "default_strategy": "RSI",
+  "auto_mode": true,
+  "model": "mistral"
+}
+
