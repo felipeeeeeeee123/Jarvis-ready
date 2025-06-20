@@ -1,9 +1,51 @@
-import json
+"""Tkinter-based dashboard for interacting with the trading backend."""
+
+import sys
 import os
+import subprocess
+import json
 import time
 import tkinter as tk
 from tkinter import messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
+
+# === Inject project root for local imports ===
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+# === Required third party packages ===
+REQUIRED_PACKAGES = [
+    "requests",
+    "pandas",
+    "matplotlib",
+    "plotly",
+    "PyMuPDF",
+    "beautifulsoup4",
+    "ollama",
+    "python-dotenv",
+]
+
+
+def ensure_packages_installed() -> None:
+    """Install any missing dependencies on the fly."""
+    for pkg in REQUIRED_PACKAGES:
+        module_name = pkg.replace("-", "_")
+        try:
+            __import__(module_name)
+        except ImportError:
+            print(f"\U0001F4E6 Installing missing package: {pkg}")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
+
+
+ensure_packages_installed()
+
+try:
+    import requests  # noqa: WPS433 - imported for side effects
+except ImportError as exc:  # pragma: no cover - runtime guard
+    raise ImportError(
+        "❌ Missing 'requests'. Activate your venv and run: pip install requests"
+    ) from exc
 
 from gui.handlers.ai_handler import (
     ask_ai,
