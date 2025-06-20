@@ -5,7 +5,14 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 from tkinter.scrolledtext import ScrolledText
 
-from gui.handlers.ai_handler import ask_ai
+from gui.handlers.ai_handler import (
+    ask_ai,
+    record_command,
+    interpret_command,
+    set_current_strategy,
+    last_context,
+    apply_feedback,
+)
 from gui.handlers.memory_handler import export_memory, search_memory, top_memories
 from gui.handlers.strategy_handler import (
     STRATEGIES,
@@ -30,6 +37,7 @@ class JarvisGUI(tk.Tk):
 
         self.config_data = self._load_config()
         self.current_strategy = self.config_data.get("default_strategy", STRATEGIES[0])
+        set_current_strategy(self.current_strategy)
 
         title = tk.Label(
             self,
@@ -83,6 +91,8 @@ class JarvisGUI(tk.Tk):
         self.chat_entry.bind("<Return>", self.send_chat)
         send_btn = ttk.Button(entry_frame, text="Send", command=self.send_chat)
         send_btn.pack(side="left")
+        ttk.Button(entry_frame, text="👍", command=lambda: self.feedback(True)).pack(side="left", padx=(5,0))
+        ttk.Button(entry_frame, text="👎", command=lambda: self.feedback(False)).pack(side="left")
 
         # Memory search and export
         search_bar = tk.Frame(self.memory_frame, bg="#1e1e1e")
@@ -164,6 +174,7 @@ class JarvisGUI(tk.Tk):
         new = switch_strategy(old)
         self.strategy_var.set(new)
         self.current_strategy = new
+        set_current_strategy(new)
         self._log(f"Strategy switched to {new}.")
         self.load_data()
 
@@ -200,12 +211,37 @@ class JarvisGUI(tk.Tk):
         if not msg:
             return
         self.chat_entry.delete(0, tk.END)
+        record_command(msg)
+        intent = interpret_command(msg)
+        if intent["action"] == "switch_strategy":
+            new = intent.get("strategy") or switch_strategy(self.current_strategy)
+            self.strategy_var.set(new)
+            self.current_strategy = new
+            set_current_strategy(new)
+            self._log(f"Strategy switched to {new}.")
+            self.load_data()
+            return
+        if intent["action"] == "pause_trading":
+            self.pause_trading()
+            return
+        if intent["action"] == "show_history":
+            self.show_graph()
+            return
+
         self._append_chat("You", msg)
         self.chat_log.configure(state="normal")
         self.chat_log.insert(tk.END, "AI: ")
         self.chat_log.configure(state="disabled")
         resp = ask_ai(msg)
+        self.last_memories = last_context().get("top_memories", []) if last_context() else []
         self._typewriter(resp)
+
+    def feedback(self, positive: bool) -> None:
+        if not hasattr(self, "last_memories"):
+            return
+        apply_feedback(self.last_memories, positive)
+        adj = "up" if positive else "down"
+        self._log(f"Feedback recorded: thumbs-{adj}.")
 
     def search_memories(self) -> None:
         query = self.search_entry.get().strip()
