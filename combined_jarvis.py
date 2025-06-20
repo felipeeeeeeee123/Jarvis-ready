@@ -1,57 +1,81 @@
-# Auto-generated combined file
-import csv
-import hashlib
-import json
-import random
-import time
-from pathlib import Path
+from __future__ import annotations
+
+# Combined JARVIS Python File
+from .ai_brain import AIBrain
+from .engineering_expert import EngineeringExpert
+from .evaluator import Evaluator
+from .memory_handler import feedback_memories
+from .memory_handler import top_memories, mark_used
+from .qa_memory import QAMemory
+from .strategies import rsi_strategy, ema_strategy, macd_strategy
+from .strategy_handler import load_stats, STRATEGIES
+from .telegram_alerts import send_telegram_alert
+from .web_search import web_search
+from alpaca_trade_api import REST, TimeFrame
 from backend.features.ai_brain import AIBrain
 from backend.features.evaluator import Evaluator
 from backend.features.qa_memory import QAMemory
 from backend.features.trending import TrendingTopics
 from backend.features.web_search import web_search
-import os
-from flask import Flask
-from threading import Thread
-import sys
-from utils.memory import MemoryManager
-import requests
-from dotenv import load_dotenv
-from datetime import datetime
-import pandas as pd
-from alpaca_trade_api import REST, TimeFrame
-from .telegram_alerts import send_telegram_alert
-from .strategies import rsi_strategy, ema_strategy, macd_strategy
-import curses
-import threading
-from .qa_memory import QAMemory
-from .web_search import web_search
-from typing import Callable, List, Tuple
-import re
-from uuid import uuid4
-from difflib import SequenceMatcher
-import fitz
-import sympy as sp
-import matplotlib
-from .ai_brain import AIBrain
-from .evaluator import Evaluator
-from typing import List
-import feedparser
 from bs4 import BeautifulSoup
+from datetime import date
+from datetime import datetime
+from difflib import SequenceMatcher
+from dotenv import load_dotenv
 from features.ai_brain import AIBrain
-from features.web_search import web_search
 from features.autotrade import run_autotrader
-from features.self_reflect import SelfReflection
-from features.self_audit import SelfAudit
 from features.dashboard import TerminalDashboard
-import subprocess
+from features.engineering_expert import EngineeringExpert
+from features.self_audit import SelfAudit
+from features.self_reflect import SelfReflection
+from features.web_search import web_search
+from flask import Flask
 from flask import Flask, request, jsonify
-import streamlit as st
-import base64
+from gui.handlers.ai_handler import (
+from gui.handlers.memory_handler import export_memory, search_memory, top_memories
+from gui.handlers.strategy_handler import (
+from pathlib import Path
+from threading import Thread
+from tkinter import messagebox, ttk
+from tkinter.scrolledtext import ScrolledText
 from typing import Any, List, Dict
+from typing import Callable, List, Tuple
 from typing import Dict, List, Any
+from typing import List
+from typing import List, Dict, Any
+from utils.memory import MemoryManager
+from uuid import uuid4
+import base64
+import bpy  # type: ignore
+import csv
+import curses
+import feedparser
+import fitz
+import hashlib
+import json
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+import openai as openai_lib
+import os
+import pandas as pd
+import plotly.graph_objects as go  # type: ignore
+import random
+import re
+import requests
+import requests  # noqa: F401
+import streamlit as st
+import subprocess
+import sympy as sp
+import sys
+import threading
+import time
+import tkinter as tk
+
 
 # === FILE: autotrain.py ===
+
+
 PAUSE_FILE = Path("autotrain.pause")
 
 TRAINING_PATH = Path("data/training_data.csv")
@@ -186,68 +210,11 @@ class SyntheticTrainer:
 if __name__ == "__main__":
     trainer = SyntheticTrainer()
     trainer.run()
-# === FILE: combine_files.py ===
-IGNORED_DIRS = {'venv', '.venv', '__pycache__'}
-SEARCH_DIRS = ['.']
 
-
-def iter_py_files():
-    py_files = []
-    for base in SEARCH_DIRS:
-        for root, dirs, files in os.walk(base):
-            dirs[:] = [d for d in dirs if d not in IGNORED_DIRS]
-            for name in files:
-                if name.endswith('.py'):
-                    path = os.path.relpath(os.path.join(root, name), '.')
-                    py_files.append(path)
-    root_files = sorted([f for f in py_files if '/' not in f])
-    backend_files = sorted([f for f in py_files if f.startswith('backend/')])
-    gui_files = sorted([f for f in py_files if f.startswith('gui/')])
-    return root_files + backend_files + gui_files
-
-
-def collect_imports_and_code(files):
-    imports = []
-    seen = set()
-    sections = []
-    for path in files:
-        with open(path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-        body_start = 0
-        for idx, line in enumerate(lines):
-            stripped = line.strip()
-            if stripped.startswith('import ') or stripped.startswith('from '):
-                if stripped not in seen:
-                    imports.append(line.rstrip())
-                    seen.add(stripped)
-                body_start = idx + 1
-            elif stripped == '' or stripped.startswith('#'):
-                body_start = idx + 1
-            else:
-                break
-        body = ''.join(lines[body_start:])
-        sections.append((path, body))
-    return imports, sections
-
-
-def main():
-    files = iter_py_files()
-    imports, sections = collect_imports_and_code(files)
-    with open('combined_jarvis.py', 'w', encoding='utf-8') as out:
-        out.write('# Auto-generated combined file\n')
-        for imp in imports:
-            out.write(f'{imp}\n')
-        out.write('\n')
-        for path, body in sections:
-            out.write(f'# === FILE: {path} ===\n')
-            out.write(body)
-            if not body.endswith('\n'):
-                out.write('\n')
-
-
-if __name__ == '__main__':
-    main()
 # === FILE: export_ollama_data.py ===
+# Utility script to generate Ollama fine-tuning data from Jarvis logs
+
+
 def collect() -> list[dict]:
     """Gather memory and audit logs into fine-tune messages."""
     records: list[dict] = []
@@ -335,7 +302,9 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
 # === FILE: keep_alive.py ===
+
 app = Flask('')
 
 @app.route('/')
@@ -349,7 +318,9 @@ def run():
 def keep_alive():
     t = Thread(target=run)
     t.start()
+
 # === FILE: sum_files.py ===
+
 EXTS = {'.py', '.md', '.json', '.txt', '.sh', '.csv'}
 
 
@@ -378,7 +349,10 @@ def main() -> None:
 
 if __name__ == '__main__':
     main()
-# === FILE: backend/daily_report.py ===
+
+# === FILE: backend\daily_report.py ===
+
+
 def generate_report(path: str = "data/memory.json") -> str:
     if not Path(path).exists():
         return "No trade data."
@@ -400,13 +374,604 @@ def generate_report(path: str = "data/memory.json") -> str:
 
 if __name__ == "__main__":
     print(generate_report())
-# === FILE: backend/features/ai_brain.py ===
+
+# === FILE: backend\gui_dashboard.py ===
+"""Tkinter-based dashboard for interacting with the trading backend."""
+
+
+# === Inject project root for local imports ===
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+
+# === Required third party packages ===
+REQUIRED_PACKAGES = [
+    "requests",
+    "pandas",
+    "matplotlib",
+    "plotly",
+    "PyMuPDF",
+    "beautifulsoup4",
+    "ollama",
+    "python-dotenv",
+]
+
+def ensure_packages_installed() -> None:
+    """Install any missing dependencies on the fly."""
+    for pkg in REQUIRED_PACKAGES:
+        module_name = pkg.replace("-", "_")
+        try:
+            __import__(module_name)
+        except ImportError:
+            print(f"\U0001F4E6 Installing missing package: {pkg}")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
+
+ensure_packages_installed()
+
+try:
+except ImportError as exc:
+    raise ImportError("❌ Missing 'requests'. Activate your venv and run: pip install requests") from exc
+
+    ask_ai,
+    record_command,
+    interpret_command,
+    set_current_strategy,
+    last_context,
+    apply_feedback,
+)
+    STRATEGIES,
+    load_stats,
+    pnl_history,
+    switch_strategy,
+    toggle_auto,
+    AUTO_MODE,
+)
+
+CONFIG_PATH = "config.json"
+
+class JarvisGUI(tk.Tk):
+    """AI Operating System dashboard."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.title("JARVIS Command Center")
+        self.geometry("900x700")
+        self.configure(bg="#121212")
+
+        self.config_data = self._load_config()
+        self.current_strategy = self.config_data.get("default_strategy", STRATEGIES[0])
+        set_current_strategy(self.current_strategy)
+
+        title = tk.Label(self, text="JARVIS CORE DASHBOARD", font=("Helvetica", 20), fg="white", bg="#121212")
+        title.pack(pady=10)
+
+        self.memory_frame = self._create_section("Top Memories")
+        self.strategy_frame = self._create_section("Strategy Stats")
+
+        self.chat_frame = tk.LabelFrame(self, text="AI Chatbot", bg="#1e1e1e", fg="white", font=("Helvetica", 14), bd=2)
+        self.chat_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        self.chat_log = ScrolledText(self.chat_frame, font=("Helvetica", 12), height=8, bg="#111", fg="white", wrap="word", state="disabled")
+        self.chat_log.tag_config("user", foreground="#00FF7F")
+        self.chat_log.tag_config("ai", foreground="#1E90FF")
+        self.chat_log.tag_config("thinking", foreground="#888888", font=("Helvetica", 12, "italic"))
+        self.chat_log.pack(fill="both", expand=True, padx=5, pady=5)
+
+        entry_frame = tk.Frame(self.chat_frame, bg="#1e1e1e")
+        entry_frame.pack(fill="x", padx=5, pady=5)
+        self.chat_entry = ttk.Entry(entry_frame)
+        self.chat_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        self.chat_entry.bind("<Return>", self.send_chat)
+        send_btn = ttk.Button(entry_frame, text="Send", command=self.send_chat)
+        send_btn.pack(side="left")
+        ttk.Button(entry_frame, text="👍", command=lambda: self.feedback(True)).pack(side="left", padx=(5, 0))
+        ttk.Button(entry_frame, text="👎", command=lambda: self.feedback(False)).pack(side="left")
+
+        self.toolbar = tk.Frame(self, bg="#121212")
+        self.toolbar.pack(fill="x", pady=5)
+
+        self.pause_btn = ttk.Button(self.toolbar, text="Pause Trading", command=self.pause_trading)
+        self.pause_btn.pack(side="left", padx=5)
+        self.switch_btn = ttk.Button(self.toolbar, text="Switch Strategy", command=self.switch_strategy_cmd)
+        self.switch_btn.pack(side="left", padx=5)
+        self.dump_btn = ttk.Button(self.toolbar, text="Dump Memory", command=self.dump_memory)
+        self.dump_btn.pack(side="left", padx=5)
+        self.refresh_btn = ttk.Button(self.toolbar, text="\N{CLOCKWISE OPEN CIRCLE ARROW} Refresh", command=self.load_data)
+        self.refresh_btn.pack(side="left", padx=5)
+
+        search_bar = tk.Frame(self.memory_frame, bg="#1e1e1e")
+        search_bar.pack(fill="x", padx=5, pady=(0, 5))
+        self.search_entry = ttk.Entry(search_bar)
+        self.search_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        ttk.Button(search_bar, text="Search", command=self.search_memories).pack(side="left")
+        ttk.Button(search_bar, text="Export", command=self.export_mem).pack(side="left")
+
+        controls = tk.Frame(self.strategy_frame, bg="#1e1e1e")
+        controls.pack(fill="x", padx=5, pady=(0, 5))
+        self.strategy_var = tk.StringVar(value=self.current_strategy)
+        self.strategy_dd = ttk.Combobox(controls, values=STRATEGIES, textvariable=self.strategy_var, state="readonly")
+        self.strategy_dd.pack(side="left", padx=(0,5))
+        self.strategy_dd.bind("<<ComboboxSelected>>", lambda e: self.load_data())
+        self.auto_var = tk.BooleanVar(value=self.config_data.get("auto_mode", True))
+        auto_btn = ttk.Checkbutton(controls, text="Auto Mode", variable=self.auto_var, command=self.toggle_auto_mode)
+        auto_btn.pack(side="left")
+        ttk.Button(controls, text="Show Graph", command=self.show_graph).pack(side="left", padx=5)
+
+        self.console = ScrolledText(self, height=5, bg="#000", fg="white", state="disabled")
+        self.console.pack(fill="both", padx=10, pady=5)
+
+        self.load_data()
+
+        self.bind_all("<Control-r>", lambda e: self.load_data())
+        self.bind_all("<Control-m>", lambda e: self.dump_memory())
+
+    def _create_section(self, title: str) -> tk.LabelFrame:
+        frame = tk.LabelFrame(self, text=title, bg="#1e1e1e", fg="white", font=("Helvetica", 14), bd=2)
+        frame.pack(fill="both", expand=True, padx=10, pady=10)
+        frame.listbox = tk.Listbox(frame, font=("Consolas", 12), height=10, bg="#222", fg="lime")
+        frame.listbox.pack(fill="both", expand=True, padx=10, pady=10)
+        return frame
+
+    def _format_timestamp(self, ts: float | str) -> str:
+        try:
+            ts_f = float(ts)
+            return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts_f))
+        except Exception:
+            return str(ts)
+
+    def load_data(self) -> None:
+        self.memory_frame.listbox.delete(0, tk.END)
+        self.strategy_frame.listbox.delete(0, tk.END)
+
+        for i, mem in enumerate(top_memories(5)):
+            ts = self._format_timestamp(mem.get("timestamp"))
+            event = mem.get("event", "")
+            tag = " \N{FIRE}" if i < 3 else ""
+            self.memory_frame.listbox.insert(tk.END, f"{ts} — {event}{tag}")
+
+        stats = load_stats().get(self.strategy_var.get(), {})
+        wins = stats.get("wins", 0)
+        losses = stats.get("losses", 0)
+        pnl = stats.get("pnl", 0.0)
+        self.strategy_frame.listbox.insert(tk.END, f"{self.strategy_var.get()}: W {wins}, L {losses}, PnL ${pnl:.2f}")
+
+    def pause_trading(self) -> None:
+        self.paused = not getattr(self, "paused", False)
+        state = "paused" if self.paused else "resumed"
+        self.pause_btn.config(text="Resume Trading" if self.paused else "Pause Trading")
+        self._log(f"Trading {state}.")
+
+    def switch_strategy_cmd(self) -> None:
+        old = self.strategy_var.get()
+        new = switch_strategy(old)
+        self.strategy_var.set(new)
+        self.current_strategy = new
+        set_current_strategy(new)
+        self._log(f"Strategy switched to {new}.")
+        self.load_data()
+
+    def dump_memory(self) -> None:
+        path = export_memory()
+        self._log(f"Memory exported to {path}")
+
+    def _log(self, text: str) -> None:
+        self.console.configure(state="normal")
+        self.console.insert(tk.END, text + "\n")
+        self.console.see(tk.END)
+        self.console.configure(state="disabled")
+
+    def _append_chat(self, speaker: str, text: str, tag: str = "", newline: bool = True) -> None:
+        self.chat_log.configure(state="normal")
+        tag_name = tag or ("user" if speaker == "You" else "ai")
+        ending = "\n" if newline else ""
+        self.chat_log.insert(tk.END, f"{speaker}: {text}{ending}", tag_name)
+        self.chat_log.see(tk.END)
+        self.chat_log.configure(state="disabled")
+
+    def _typewriter(self, text: str, idx: int = 0) -> None:
+        if idx < len(text):
+            self.chat_log.configure(state="normal")
+            self.chat_log.insert(tk.END, text[idx])
+            self.chat_log.see(tk.END)
+            self.chat_log.configure(state="disabled")
+            self.after(25, self._typewriter, text, idx + 1)
+        else:
+            self.chat_log.configure(state="normal")
+            self.chat_log.insert(tk.END, "\n")
+            self.chat_log.configure(state="disabled")
+
+    def send_chat(self, event=None) -> None:
+        msg = self.chat_entry.get().strip()
+        if not msg:
+            return
+        self.chat_entry.delete(0, tk.END)
+        record_command(msg)
+        intent = interpret_command(msg)
+        if intent["action"] == "switch_strategy":
+            new = intent.get("strategy") or switch_strategy(self.current_strategy)
+            self.strategy_var.set(new)
+            self.current_strategy = new
+            set_current_strategy(new)
+            self._log(f"Strategy switched to {new}.")
+            self.load_data()
+            return
+        if intent["action"] == "pause_trading":
+            self.pause_trading()
+            return
+        if intent["action"] == "show_history":
+            self.show_graph()
+            return
+
+        self._append_chat("You", msg)
+        self._append_chat("AI", "Thinking...", tag="thinking")
+
+        def worker() -> None:
+            resp = ask_ai(msg)
+            self.last_memories = last_context().get("top_memories", []) if last_context() else []
+            self.after(0, lambda: self._display_response(resp))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _display_response(self, text: str) -> None:
+        self.chat_log.configure(state="normal")
+        if self.chat_log.get("end-2l", "end-1c").strip() == "AI: Thinking...":
+            start = "end-2l linestart"
+            end = "end-1c"
+            self.chat_log.delete(start, end)
+        self.chat_log.configure(state="disabled")
+        self._append_chat("AI", "", newline=False)
+        self._typewriter(text)
+
+    def feedback(self, positive: bool) -> None:
+        if not hasattr(self, "last_memories"):
+            return
+        apply_feedback(self.last_memories, positive)
+        adj = "up" if positive else "down"
+        self._log(f"Feedback recorded: thumbs-{adj}.")
+
+    def search_memories(self) -> None:
+        query = self.search_entry.get().strip()
+        self.memory_frame.listbox.delete(0, tk.END)
+        for mem in search_memory(query):
+            ts = self._format_timestamp(mem.get("timestamp"))
+            event = mem.get("event", "")
+            self.memory_frame.listbox.insert(tk.END, f"{ts} — {event}")
+
+    def export_mem(self) -> None:
+        path = export_memory()
+        self._log(f"Memory exported to {path}")
+
+    def toggle_auto_mode(self) -> None:
+        toggle_auto()
+        state = "on" if AUTO_MODE else "off"
+        self._log(f"Auto mode {state}")
+
+    def show_graph(self) -> None:
+        data = pnl_history(self.strategy_var.get())
+        if not data:
+            messagebox.showinfo("Graph", "No history available")
+            return
+        plt.figure(figsize=(4, 3))
+        plt.plot(data)
+        plt.title(f"{self.strategy_var.get()} PnL")
+        plt.xlabel("Trade")
+        plt.ylabel("PnL")
+        plt.tight_layout()
+        plt.show()
+
+    def _load_config(self) -> dict:
+        if os.path.exists(CONFIG_PATH):
+            try:
+                with open(CONFIG_PATH, "r") as f:
+                    return json.load(f)
+            except Exception:
+                return {}
+        return {}
+
+if __name__ == "__main__":
+    app = JarvisGUI()
+    app.mainloop()
+
+# === FILE: backend\main.py ===
+
+
+def main():
+    brain = AIBrain()
+    print("🤖 JARVIS is online. Type 'exit' to quit.")
+    online_mode = True  # Turn this False to go fully offline
+
+    # ==== background autotrain setup ====
+    base_dir = Path(__file__).resolve().parent.parent
+    log_dir = base_dir / "logs"
+    log_dir.mkdir(exist_ok=True)
+    lock_file = base_dir / "autotrain.lock"
+
+    stop_event = threading.Event()
+
+    def start_autotrain() -> tuple[subprocess.Popen, object]:
+        if lock_file.exists():
+            try:
+                pid = int(lock_file.read_text().strip())
+                if pid > 0 and Path(f"/proc/{pid}").exists():
+                    return None, None
+            except Exception:
+                pass
+            lock_file.unlink(missing_ok=True)
+
+        log_path = log_dir / "autotrain.log"
+        log_f = open(log_path, "a")
+        proc = subprocess.Popen(
+            ["python", "autotrain.py"],
+            cwd=str(base_dir),
+            stdout=log_f,
+            stderr=log_f,
+        )
+        lock_file.write_text(str(proc.pid))
+        return proc, log_f
+
+    def monitor_autotrain(event: threading.Event):
+        proc, log_f = start_autotrain()
+        while not event.is_set():
+            if proc and proc.poll() is not None:
+                if log_f:
+                    log_f.write(f"AutoTrain exited with {proc.returncode}, restarting...\n")
+                    log_f.flush()
+                proc, log_f = start_autotrain()
+            time.sleep(5)
+        if proc and proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+        if log_f:
+            log_f.close()
+        lock_file.unlink(missing_ok=True)
+
+    monitor_thread = threading.Thread(
+        target=monitor_autotrain, args=(stop_event,), daemon=True
+    )
+    monitor_thread.start()
+    reflect_thread = SelfReflection()
+    audit_thread = SelfAudit()
+    dashboard_thread = TerminalDashboard(audit=audit_thread)
+    reflect_thread.start()
+    audit_thread.start()
+    dashboard_thread.start()
+
+    try:
+        while True:
+            prompt = input("🧠 You: ").strip()
+            if prompt.lower() == "exit":
+                print("👋 JARVIS shutting down.")
+                break
+
+            if online_mode and prompt.lower().startswith("search:"):
+                query = prompt.split("search:", 1)[-1].strip()
+                response = web_search(query)
+            elif prompt.lower().startswith("trade"):
+                _, *symbols = prompt.split()
+                run_autotrader(symbols or None)
+                response = "Trade executed"
+            else:
+                response = brain.ask(prompt)
+
+            if response.startswith("[Error"):
+                dashboard_thread.fail += 1
+            else:
+                dashboard_thread.success += 1
+            dashboard_thread.log_interaction(prompt, response)
+            print(f"🤖 JARVIS: {response}")
+    except KeyboardInterrupt:
+        print("\n👋 JARVIS shutting down.")
+    finally:
+        stop_event.set()
+        reflect_thread.stop()
+        audit_thread.stop()
+        dashboard_thread.stop()
+        monitor_thread.join()
+        reflect_thread.join()
+        audit_thread.join()
+        dashboard_thread.join()
+
+# === FILE: backend\server.py ===
+
+app = Flask(__name__)
+
+
+@app.route("/trade")
+def trade():
+    symbol = request.args.get("symbol", "AAPL")
+    run_autotrader([symbol])
+    return jsonify({"status": "ok"})
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8000)
+
+# === FILE: backend\web_dashboard.py ===
+
+
+def _display_model(path: str) -> None:
+    """Display a GLB model interactively using model-viewer."""
+    if not os.path.exists(path):
+        st.write("Model not found.")
+        return
+
+    try:
+        data = open(path, "rb").read()
+        b64 = base64.b64encode(data).decode()
+        html = f"""
+        <script type=\"module\" src=\"https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js\"></script>
+        <model-viewer src=\"data:model/gltf-binary;base64,{b64}\" camera-controls auto-rotate style=\"width: 100%; height: 300px;\"></model-viewer>
+        """
+        st.components.v1.html(html, height=320)
+    except Exception:
+        st.write("Preview unavailable. Download below.")
+        with open(path, "rb") as f:
+            st.download_button(
+                "Download model", data=f.read(), file_name=os.path.basename(path)
+            )
+
+
+def show_dashboard():
+    mem = MemoryManager()
+    st.title("JARVIS Web Dashboard")
+    for ticker, info in mem.memory.items():
+        if ticker in ("stats", "cooldowns"):
+            continue
+        st.write(
+            f"**{ticker}** - P/L: {info['total_profit']:.2f} from {info['trade_count']} trades"
+        )
+    stats = mem.memory.get("stats", {})
+    wins = stats.get("wins", 0)
+    losses = stats.get("losses", 0)
+    total = wins + losses
+    if total:
+        st.write(f"Win rate: {wins/total*100:.2f}%")
+
+    st.header("Solve Worksheet PDF")
+    uploaded = st.file_uploader("Upload PDF", type=["pdf"])
+    if uploaded:
+        path = "uploaded.pdf"
+        with open(path, "wb") as f:
+            f.write(uploaded.getvalue())
+        brain = AIBrain()
+        results = brain.solve_pdf(path)
+        for res in results.values():
+            st.markdown(res)
+
+    st.header("Blueprint Simulation")
+    blueprint = mem.memory.get("last_blueprint")
+    if blueprint:
+        st.image(blueprint)
+        if st.button("Run Simulation"):
+
+            expert = EngineeringExpert()
+            result = expert.simulate(blueprint)
+            st.markdown(result)
+    else:
+        st.write("No blueprint available.")
+
+    st.header("Last 3D Model")
+    model = mem.memory.get("last_model")
+    if model:
+        _display_model(model)
+    else:
+        st.write("No 3D model available.")
+
+    st.header("Interactive Simulation")
+    sim_type = st.selectbox(
+        "Simulation type",
+        ["mechanical", "civil", "electrical", "thermal", "fluid"],
+    )
+    params = {}
+    if sim_type == "mechanical":
+        params["length"] = st.slider("Length (m)", 1.0, 10.0, 1.0)
+        params["force"] = st.slider("Force (N)", 100.0, 5000.0, 1000.0)
+        params["h"] = st.slider("Height (m)", 0.05, 0.5, 0.1)
+    elif sim_type == "civil":
+        params["span"] = st.slider("Span (m)", 1.0, 20.0, 5.0)
+        params["load"] = st.slider("Load (ton)", 1.0, 20.0, 1.0)
+    elif sim_type == "electrical":
+        params["voltage"] = st.slider("Voltage (V)", 1.0, 20.0, 5.0)
+    elif sim_type == "thermal":
+        params["length"] = st.slider("Length (m)", 0.5, 5.0, 1.0)
+        params["t1"] = st.slider("Temp 1 (C)", 0.0, 500.0, 100.0)
+        params["t2"] = st.slider("Temp 2 (C)", 0.0, 500.0, 0.0)
+    elif sim_type == "fluid":
+        params["width"] = st.slider("Width (m)", 0.5, 5.0, 1.0)
+        params["height"] = st.slider("Height (m)", 0.5, 5.0, 1.0)
+    if st.button("Run Interactive Simulation"):
+
+        expert = EngineeringExpert()
+        st.markdown(expert.simulate(sim_type, params))
+
+    st.subheader("Optimization Mode")
+    if st.button("Optimize", key="opt_btn"):
+
+        expert = EngineeringExpert()
+        best = expert.optimize(sim_type, "perf", {k: (0.5, v) if isinstance(v, float) else v for k, v in params.items()})
+        st.json(best)
+
+    st.subheader("AI Design Assistant")
+    desc = st.text_input("Describe your design goal")
+    if st.button("Get Design", key="design") and desc:
+
+        expert = EngineeringExpert()
+        st.markdown(expert.design_assistant(desc))
+        if st.button("Run Full Analysis", key="chain"):
+            st.markdown(expert.analysis_chain(desc))
+
+    st.header("Sim Results")
+    sim_mem = MemoryManager(path="data/simulation_index.json")
+    tag_filter = st.text_input("Filter by tag")
+    sims_to_show = sim_mem.memory.get("simulations", [])
+    if tag_filter:
+        sims_to_show = [s for s in sims_to_show if tag_filter in s.get("tags", [])]
+    for sim in reversed(sims_to_show[-5:]):
+        ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(sim.get("timestamp", 0)))
+        with st.expander(f"{sim['prompt']} ({ts})"):
+            st.markdown(sim.get("result", ""))
+            st.image(sim.get("path", ""))
+            model_path = sim.get("model")
+            if model_path:
+                _display_model(model_path)
+            col1, col2 = st.columns(2)
+            if col1.button("Rerun", key=f"rerun_{ts}"):
+
+                expert = EngineeringExpert()
+                st.markdown(expert.simulate(sim["prompt"]))
+            if col2.download_button(
+                "Export",
+                data=open(sim["path"], "rb").read(),
+                file_name=os.path.basename(sim["path"]),
+            ):
+                pass
+
+    st.header("Multi-Sim Comparison")
+    all_sims = sim_mem.memory.get("simulations", [])
+    sim_map = {s["uuid"]: s for s in all_sims}
+    selection = st.multiselect(
+        "Select up to 3 simulations",
+        list(sim_map.keys()),
+        format_func=lambda x: sim_map[x]["prompt"],
+        max_selections=3,
+    )
+    if selection:
+        cols = st.columns(len(selection))
+        for col, sid in zip(cols, selection):
+            sim = sim_map[sid]
+            with col:
+                st.markdown(f"**{sim['prompt']}**")
+                view = st.radio(
+                    "View",
+                    ["2D Plot", "3D Model"],
+                    key=f"view_{sid}",
+                )
+                if view == "3D Model" and sim.get("model"):
+                    _display_model(sim["model"])
+                else:
+                    st.image(sim.get("path", ""))
+                st.write(sim.get("result", ""))
+                new_prompt = st.text_input(
+                    "Edit prompt",
+                    value=sim["prompt"],
+                    key=f"edit_{sid}",
+                )
+                if st.button("Run", key=f"run_{sid}"):
+
+                    expert = EngineeringExpert()
+                    st.markdown(expert.simulate(new_prompt))
+
+
+if __name__ == "__main__":
+    show_dashboard()
+
+# === FILE: backend\features\ai_brain.py ===
+
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-from utils.memory import MemoryManager
-from .qa_memory import QAMemory
-from .evaluator import Evaluator
-from .web_search import web_search
-from .engineering_expert import EngineeringExpert
 
 openai = None
 
@@ -419,7 +984,6 @@ class AIBrain:
         self.evaluator = Evaluator()
         self.api_key = os.getenv("OPENAI_API_KEY")
         if self.api_key:
-            import openai as openai_lib
 
             openai_lib.api_key = self.api_key
             global openai
@@ -501,7 +1065,12 @@ class AIBrain:
         self.evaluator.update_leaderboard(prompt, score)
         self.qa_memory.prune()
         return answer
-# === FILE: backend/features/autotrade.py ===
+
+# === FILE: backend\features\autotrade.py ===
+# autotrade.py
+
+
+
 load_dotenv()
 
 # === Load environment variables ===
@@ -567,7 +1136,11 @@ def run_autotrader(symbols=None):
             execute_trade(sym)
         except Exception as exc:
             print(f"Autotrade error for {sym}: {exc}")
-# === FILE: backend/features/dashboard.py ===
+
+# === FILE: backend\features\dashboard.py ===
+
+
+
 class TerminalDashboard(threading.Thread):
     def __init__(self, refresh: int = 2, audit=None):
         super().__init__(daemon=True)
@@ -772,24 +1345,19 @@ class TerminalDashboard(threading.Thread):
 
     def stop(self):
         self.stop_event.set()
-# === FILE: backend/features/engineering_expert.py ===
+
+# === FILE: backend\features\engineering_expert.py ===
+# pyright: reportMissingImports=false
+
 try:
-    import bpy  # type: ignore
 except Exception:  # pragma: no cover - optional dependency
     bpy = None
 
 try:
-    import plotly.graph_objects as go  # type: ignore
 except Exception:  # pragma: no cover - optional dependency
     go = None
 
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt
-import numpy as np
-from .web_search import web_search
-from .qa_memory import QAMemory
-from .evaluator import Evaluator
-from utils.memory import MemoryManager
 
 BLUEPRINT_DIR = "blueprints"
 os.makedirs(BLUEPRINT_DIR, exist_ok=True)
@@ -1336,7 +1904,6 @@ class EngineeringExpert:
         iterations: int = 20,
     ) -> dict:
         """Simple random search optimization for a simulation."""
-        import random
 
         best: dict | None = None
         best_score = float("inf")
@@ -1650,7 +2217,11 @@ class EngineeringExpert:
         result = f"Max velocity: {max_vel:.2f} m/s"
         margin = 1.0 - max_vel
         return result, img_path, fail, margin
-# === FILE: backend/features/evaluator.py ===
+
+# === FILE: backend\features\evaluator.py ===
+
+
+
 SOURCE_WEIGHT = {
     "DuckDuckGo": 1.0,
     "Bing": 0.8,
@@ -1696,7 +2267,10 @@ class Evaluator:
             writer = csv.DictWriter(f, fieldnames=["question", "score"])
             writer.writeheader()
             writer.writerows(entries[:100])
-# === FILE: backend/features/qa_memory.py ===
+
+# === FILE: backend\features\qa_memory.py ===
+
+
 class QAMemory:
     def __init__(self, path: str = "data/qa_memory.json"):
         self.path = Path(path)
@@ -1784,9 +2358,12 @@ class QAMemory:
     def get_random(self):
         if not self.data:
             return None
-        import random
         return random.choice(self.data)
-# === FILE: backend/features/self_audit.py ===
+
+# === FILE: backend\features\self_audit.py ===
+
+
+
 class SelfAudit(threading.Thread):
     """Nightly audit that re-checks all stored Q&A."""
 
@@ -1849,7 +2426,11 @@ class SelfAudit(threading.Thread):
             self.checked += 1
         if changed:
             self.memory.save()
-# === FILE: backend/features/self_reflect.py ===
+
+# === FILE: backend\features\self_reflect.py ===
+
+
+
 class SelfReflection(threading.Thread):
     def __init__(self, interval: int = 300):
         super().__init__(daemon=True)
@@ -1879,7 +2460,10 @@ class SelfReflection(threading.Thread):
 
     def stop(self):
         self.stop_event.set()
-# === FILE: backend/features/strategies.py ===
+
+# === FILE: backend\features\strategies.py ===
+
+
 def compute_rsi(series: pd.Series, period: int = 14) -> pd.Series:
     delta = series.diff()
     up = delta.clip(lower=0)
@@ -1920,7 +2504,10 @@ def macd_strategy(prices: pd.Series) -> str:
     if macd.iloc[-1] < signal.iloc[-1] and macd.iloc[-2] >= signal.iloc[-2]:
         return "sell"
     return "hold"
-# === FILE: backend/features/telegram_alerts.py ===
+
+# === FILE: backend\features\telegram_alerts.py ===
+
+
 def send_telegram_alert(message: str) -> None:
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
@@ -1931,7 +2518,10 @@ def send_telegram_alert(message: str) -> None:
         requests.post(url, json={"chat_id": chat_id, "text": message}, timeout=5)
     except Exception:
         pass
-# === FILE: backend/features/trending.py ===
+
+# === FILE: backend\features\trending.py ===
+
+
 RSS_FEEDS = [
     "https://feeds.bbci.co.uk/news/rss.xml",
     "https://feeds.reuters.com/reuters/topNews",
@@ -1949,7 +2539,6 @@ class TrendingTopics:
     def load(self):
         if self.cache.exists():
             try:
-                import json
                 data = json.loads(self.cache.read_text())
                 self.topics = data.get("topics", [])
                 self.last_fetch = data.get("timestamp", 0)
@@ -1958,7 +2547,6 @@ class TrendingTopics:
 
     def save(self):
         self.cache.parent.mkdir(exist_ok=True)
-        import json
         self.cache.write_text(
             json.dumps({"topics": self.topics, "timestamp": self.last_fetch}, indent=2)
         )
@@ -1991,7 +2579,9 @@ class TrendingTopics:
                 "culture",
             ])
         return random.choice(topics)
-# === FILE: backend/features/web_search.py ===
+
+# === FILE: backend\features\web_search.py ===
+
 def web_search(query):
     url = f"https://duckduckgo.com/html/?q={query}"
     headers = {"User-Agent": "Mozilla/5.0"}
@@ -2002,430 +2592,10 @@ def web_search(query):
         return "\n".join([r.get_text() for r in results]) or "No results found."
     except Exception as e:
         return f"[Web search error: {e}]"
-# === FILE: backend/gui_dashboard.py ===
-"""Tkinter-based dashboard for interacting with the trading backend."""
 
-import sys
-import os
-import subprocess
-import json
-import time
-import threading
-import tkinter as tk
-from tkinter import messagebox, ttk
-from tkinter.scrolledtext import ScrolledText
-
-# === Inject project root for local imports ===
-ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
-
-# === Required third party packages ===
-REQUIRED_PACKAGES = [
-    "requests",
-    "pandas",
-    "matplotlib",
-    "plotly",
-    "PyMuPDF",
-    "beautifulsoup4",
-    "ollama",
-    "python-dotenv",
-]
-
-def ensure_packages_installed() -> None:
-    """Install any missing dependencies on the fly."""
-    for pkg in REQUIRED_PACKAGES:
-        module_name = pkg.replace("-", "_")
-        try:
-            __import__(module_name)
-        except ImportError:
-            print(f"\U0001F4E6 Installing missing package: {pkg}")
-            subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
-
-ensure_packages_installed()
-
-try:
-    import requests  # noqa: F401
-except ImportError as exc:
-    raise ImportError("❌ Missing 'requests'. Activate your venv and run: pip install requests") from exc
-
-from gui.handlers.ai_handler import (
-    ask_ai,
-    record_command,
-    interpret_command,
-    set_current_strategy,
-    last_context,
-    apply_feedback,
-)
-from gui.handlers.memory_handler import export_memory, search_memory, top_memories
-from gui.handlers.strategy_handler import (
-    STRATEGIES,
-    load_stats,
-    pnl_history,
-    switch_strategy,
-    toggle_auto,
-    AUTO_MODE,
-)
-
-CONFIG_PATH = "config.json"
-
-class JarvisGUI(tk.Tk):
-    """AI Operating System dashboard."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.title("JARVIS Command Center")
-        self.geometry("900x700")
-        self.configure(bg="#121212")
-
-        self.config_data = self._load_config()
-        self.current_strategy = self.config_data.get("default_strategy", STRATEGIES[0])
-        set_current_strategy(self.current_strategy)
-
-        title = tk.Label(self, text="JARVIS CORE DASHBOARD", font=("Helvetica", 20), fg="white", bg="#121212")
-        title.pack(pady=10)
-
-        self.memory_frame = self._create_section("Top Memories")
-        self.strategy_frame = self._create_section("Strategy Stats")
-
-        self.chat_frame = tk.LabelFrame(self, text="AI Chatbot", bg="#1e1e1e", fg="white", font=("Helvetica", 14), bd=2)
-        self.chat_frame.pack(fill="both", expand=True, padx=10, pady=10)
-
-        self.chat_log = ScrolledText(self.chat_frame, font=("Helvetica", 12), height=8, bg="#111", fg="white", wrap="word", state="disabled")
-        self.chat_log.tag_config("user", foreground="#00FF7F")
-        self.chat_log.tag_config("ai", foreground="#1E90FF")
-        self.chat_log.tag_config("thinking", foreground="#888888", font=("Helvetica", 12, "italic"))
-        self.chat_log.pack(fill="both", expand=True, padx=5, pady=5)
-
-        entry_frame = tk.Frame(self.chat_frame, bg="#1e1e1e")
-        entry_frame.pack(fill="x", padx=5, pady=5)
-        self.chat_entry = ttk.Entry(entry_frame)
-        self.chat_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
-        self.chat_entry.bind("<Return>", self.send_chat)
-        send_btn = ttk.Button(entry_frame, text="Send", command=self.send_chat)
-        send_btn.pack(side="left")
-        ttk.Button(entry_frame, text="👍", command=lambda: self.feedback(True)).pack(side="left", padx=(5, 0))
-        ttk.Button(entry_frame, text="👎", command=lambda: self.feedback(False)).pack(side="left")
-
-        self.toolbar = tk.Frame(self, bg="#121212")
-        self.toolbar.pack(fill="x", pady=5)
-
-        self.pause_btn = ttk.Button(self.toolbar, text="Pause Trading", command=self.pause_trading)
-        self.pause_btn.pack(side="left", padx=5)
-        self.switch_btn = ttk.Button(self.toolbar, text="Switch Strategy", command=self.switch_strategy_cmd)
-        self.switch_btn.pack(side="left", padx=5)
-        self.dump_btn = ttk.Button(self.toolbar, text="Dump Memory", command=self.dump_memory)
-        self.dump_btn.pack(side="left", padx=5)
-        self.refresh_btn = ttk.Button(self.toolbar, text="\N{CLOCKWISE OPEN CIRCLE ARROW} Refresh", command=self.load_data)
-        self.refresh_btn.pack(side="left", padx=5)
-
-        search_bar = tk.Frame(self.memory_frame, bg="#1e1e1e")
-        search_bar.pack(fill="x", padx=5, pady=(0, 5))
-        self.search_entry = ttk.Entry(search_bar)
-        self.search_entry.pack(side="left", fill="x", expand=True, padx=(0, 5))
-        ttk.Button(search_bar, text="Search", command=self.search_memories).pack(side="left")
-        ttk.Button(search_bar, text="Export", command=self.export_mem).pack(side="left")
-
-        controls = tk.Frame(self.strategy_frame, bg="#1e1e1e")
-        controls.pack(fill="x", padx=5, pady=(0, 5))
-        self.strategy_var = tk.StringVar(value=self.current_strategy)
-        self.strategy_dd = ttk.Combobox(controls, values=STRATEGIES, textvariable=self.strategy_var, state="readonly")
-        self.strategy_dd.pack(side="left", padx=(0,5))
-        self.strategy_dd.bind("<<ComboboxSelected>>", lambda e: self.load_data())
-        self.auto_var = tk.BooleanVar(value=self.config_data.get("auto_mode", True))
-        auto_btn = ttk.Checkbutton(controls, text="Auto Mode", variable=self.auto_var, command=self.toggle_auto_mode)
-        auto_btn.pack(side="left")
-        ttk.Button(controls, text="Show Graph", command=self.show_graph).pack(side="left", padx=5)
-
-        self.console = ScrolledText(self, height=5, bg="#000", fg="white", state="disabled")
-        self.console.pack(fill="both", padx=10, pady=5)
-
-        self.load_data()
-
-        self.bind_all("<Control-r>", lambda e: self.load_data())
-        self.bind_all("<Control-m>", lambda e: self.dump_memory())
-
-    def _create_section(self, title: str) -> tk.LabelFrame:
-        frame = tk.LabelFrame(self, text=title, bg="#1e1e1e", fg="white", font=("Helvetica", 14), bd=2)
-        frame.pack(fill="both", expand=True, padx=10, pady=10)
-        frame.listbox = tk.Listbox(frame, font=("Consolas", 12), height=10, bg="#222", fg="lime")
-        frame.listbox.pack(fill="both", expand=True, padx=10, pady=10)
-        return frame
-
-    def _format_timestamp(self, ts: float | str) -> str:
-        try:
-            ts_f = float(ts)
-            return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(ts_f))
-        except Exception:
-            return str(ts)
-
-    def load_data(self) -> None:
-        self.memory_frame.listbox.delete(0, tk.END)
-        self.strategy_frame.listbox.delete(0, tk.END)
-
-        for i, mem in enumerate(top_memories(5)):
-            ts = self._format_timestamp(mem.get("timestamp"))
-            event = mem.get("event", "")
-            tag = " \N{FIRE}" if i < 3 else ""
-            self.memory_frame.listbox.insert(tk.END, f"{ts} — {event}{tag}")
-
-        stats = load_stats().get(self.strategy_var.get(), {})
-        wins = stats.get("wins", 0)
-        losses = stats.get("losses", 0)
-        pnl = stats.get("pnl", 0.0)
-        self.strategy_frame.listbox.insert(tk.END, f"{self.strategy_var.get()}: W {wins}, L {losses}, PnL ${pnl:.2f}")
-
-    def pause_trading(self) -> None:
-        self.paused = not getattr(self, "paused", False)
-        state = "paused" if self.paused else "resumed"
-        self.pause_btn.config(text="Resume Trading" if self.paused else "Pause Trading")
-        self._log(f"Trading {state}.")
-
-    def switch_strategy_cmd(self) -> None:
-        old = self.strategy_var.get()
-        new = switch_strategy(old)
-        self.strategy_var.set(new)
-        self.current_strategy = new
-        set_current_strategy(new)
-        self._log(f"Strategy switched to {new}.")
-        self.load_data()
-
-    def dump_memory(self) -> None:
-        path = export_memory()
-        self._log(f"Memory exported to {path}")
-
-    def _log(self, text: str) -> None:
-        self.console.configure(state="normal")
-        self.console.insert(tk.END, text + "\n")
-        self.console.see(tk.END)
-        self.console.configure(state="disabled")
-
-    def _append_chat(self, speaker: str, text: str, tag: str = "", newline: bool = True) -> None:
-        self.chat_log.configure(state="normal")
-        tag_name = tag or ("user" if speaker == "You" else "ai")
-        ending = "\n" if newline else ""
-        self.chat_log.insert(tk.END, f"{speaker}: {text}{ending}", tag_name)
-        self.chat_log.see(tk.END)
-        self.chat_log.configure(state="disabled")
-
-    def _typewriter(self, text: str, idx: int = 0) -> None:
-        if idx < len(text):
-            self.chat_log.configure(state="normal")
-            self.chat_log.insert(tk.END, text[idx])
-            self.chat_log.see(tk.END)
-            self.chat_log.configure(state="disabled")
-            self.after(25, self._typewriter, text, idx + 1)
-        else:
-            self.chat_log.configure(state="normal")
-            self.chat_log.insert(tk.END, "\n")
-            self.chat_log.configure(state="disabled")
-
-    def send_chat(self, event=None) -> None:
-        msg = self.chat_entry.get().strip()
-        if not msg:
-            return
-        self.chat_entry.delete(0, tk.END)
-        record_command(msg)
-        intent = interpret_command(msg)
-        if intent["action"] == "switch_strategy":
-            new = intent.get("strategy") or switch_strategy(self.current_strategy)
-            self.strategy_var.set(new)
-            self.current_strategy = new
-            set_current_strategy(new)
-            self._log(f"Strategy switched to {new}.")
-            self.load_data()
-            return
-        if intent["action"] == "pause_trading":
-            self.pause_trading()
-            return
-        if intent["action"] == "show_history":
-            self.show_graph()
-            return
-
-        self._append_chat("You", msg)
-        self._append_chat("AI", "Thinking...", tag="thinking")
-
-        def worker() -> None:
-            resp = ask_ai(msg)
-            self.last_memories = last_context().get("top_memories", []) if last_context() else []
-            self.after(0, lambda: self._display_response(resp))
-
-        threading.Thread(target=worker, daemon=True).start()
-
-    def _display_response(self, text: str) -> None:
-        self.chat_log.configure(state="normal")
-        if self.chat_log.get("end-2l", "end-1c").strip() == "AI: Thinking...":
-            start = "end-2l linestart"
-            end = "end-1c"
-            self.chat_log.delete(start, end)
-        self.chat_log.configure(state="disabled")
-        self._append_chat("AI", "", newline=False)
-        self._typewriter(text)
-
-    def feedback(self, positive: bool) -> None:
-        if not hasattr(self, "last_memories"):
-            return
-        apply_feedback(self.last_memories, positive)
-        adj = "up" if positive else "down"
-        self._log(f"Feedback recorded: thumbs-{adj}.")
-
-    def search_memories(self) -> None:
-        query = self.search_entry.get().strip()
-        self.memory_frame.listbox.delete(0, tk.END)
-        for mem in search_memory(query):
-            ts = self._format_timestamp(mem.get("timestamp"))
-            event = mem.get("event", "")
-            self.memory_frame.listbox.insert(tk.END, f"{ts} — {event}")
-
-    def export_mem(self) -> None:
-        path = export_memory()
-        self._log(f"Memory exported to {path}")
-
-    def toggle_auto_mode(self) -> None:
-        toggle_auto()
-        state = "on" if AUTO_MODE else "off"
-        self._log(f"Auto mode {state}")
-
-    def show_graph(self) -> None:
-        import matplotlib.pyplot as plt
-        data = pnl_history(self.strategy_var.get())
-        if not data:
-            messagebox.showinfo("Graph", "No history available")
-            return
-        plt.figure(figsize=(4, 3))
-        plt.plot(data)
-        plt.title(f"{self.strategy_var.get()} PnL")
-        plt.xlabel("Trade")
-        plt.ylabel("PnL")
-        plt.tight_layout()
-        plt.show()
-
-    def _load_config(self) -> dict:
-        if os.path.exists(CONFIG_PATH):
-            try:
-                with open(CONFIG_PATH, "r") as f:
-                    return json.load(f)
-            except Exception:
-                return {}
-        return {}
-
-if __name__ == "__main__":
-    app = JarvisGUI()
-    app.mainloop()
-# === FILE: backend/main.py ===
-def main():
-    brain = AIBrain()
-    print("🤖 JARVIS is online. Type 'exit' to quit.")
-    online_mode = True  # Turn this False to go fully offline
-
-    # ==== background autotrain setup ====
-    base_dir = Path(__file__).resolve().parent.parent
-    log_dir = base_dir / "logs"
-    log_dir.mkdir(exist_ok=True)
-    lock_file = base_dir / "autotrain.lock"
-
-    stop_event = threading.Event()
-
-    def start_autotrain() -> tuple[subprocess.Popen, object]:
-        if lock_file.exists():
-            try:
-                pid = int(lock_file.read_text().strip())
-                if pid > 0 and Path(f"/proc/{pid}").exists():
-                    return None, None
-            except Exception:
-                pass
-            lock_file.unlink(missing_ok=True)
-
-        log_path = log_dir / "autotrain.log"
-        log_f = open(log_path, "a")
-        proc = subprocess.Popen(
-            ["python", "autotrain.py"],
-            cwd=str(base_dir),
-            stdout=log_f,
-            stderr=log_f,
-        )
-        lock_file.write_text(str(proc.pid))
-        return proc, log_f
-
-    def monitor_autotrain(event: threading.Event):
-        proc, log_f = start_autotrain()
-        while not event.is_set():
-            if proc and proc.poll() is not None:
-                if log_f:
-                    log_f.write(f"AutoTrain exited with {proc.returncode}, restarting...\n")
-                    log_f.flush()
-                proc, log_f = start_autotrain()
-            time.sleep(5)
-        if proc and proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                proc.wait()
-        if log_f:
-            log_f.close()
-        lock_file.unlink(missing_ok=True)
-
-    monitor_thread = threading.Thread(
-        target=monitor_autotrain, args=(stop_event,), daemon=True
-    )
-    monitor_thread.start()
-    reflect_thread = SelfReflection()
-    audit_thread = SelfAudit()
-    dashboard_thread = TerminalDashboard(audit=audit_thread)
-    reflect_thread.start()
-    audit_thread.start()
-    dashboard_thread.start()
-
-    try:
-        while True:
-            prompt = input("🧠 You: ").strip()
-            if prompt.lower() == "exit":
-                print("👋 JARVIS shutting down.")
-                break
-
-            if online_mode and prompt.lower().startswith("search:"):
-                query = prompt.split("search:", 1)[-1].strip()
-                response = web_search(query)
-            elif prompt.lower().startswith("trade"):
-                _, *symbols = prompt.split()
-                run_autotrader(symbols or None)
-                response = "Trade executed"
-            else:
-                response = brain.ask(prompt)
-
-            if response.startswith("[Error"):
-                dashboard_thread.fail += 1
-            else:
-                dashboard_thread.success += 1
-            dashboard_thread.log_interaction(prompt, response)
-            print(f"🤖 JARVIS: {response}")
-    except KeyboardInterrupt:
-        print("\n👋 JARVIS shutting down.")
-    finally:
-        stop_event.set()
-        reflect_thread.stop()
-        audit_thread.stop()
-        dashboard_thread.stop()
-        monitor_thread.join()
-        reflect_thread.join()
-        audit_thread.join()
-        dashboard_thread.join()
-# === FILE: backend/server.py ===
-app = Flask(__name__)
+# === FILE: backend\utils\memory.py ===
 
 
-@app.route("/trade")
-def trade():
-    symbol = request.args.get("symbol", "AAPL")
-    run_autotrader([symbol])
-    return jsonify({"status": "ok"})
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000)
-# === FILE: backend/utils/memory.py ===
 class MemoryManager:
     def __init__(self, path='data/memory.json'):
         self.path = path
@@ -2465,205 +2635,12 @@ class MemoryManager:
             stats["losses"] += 1
         self.save()
         return pnl
-# === FILE: backend/web_dashboard.py ===
-def _display_model(path: str) -> None:
-    """Display a GLB model interactively using model-viewer."""
-    if not os.path.exists(path):
-        st.write("Model not found.")
-        return
 
-    try:
-        data = open(path, "rb").read()
-        b64 = base64.b64encode(data).decode()
-        html = f"""
-        <script type=\"module\" src=\"https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js\"></script>
-        <model-viewer src=\"data:model/gltf-binary;base64,{b64}\" camera-controls auto-rotate style=\"width: 100%; height: 300px;\"></model-viewer>
-        """
-        st.components.v1.html(html, height=320)
-    except Exception:
-        st.write("Preview unavailable. Download below.")
-        with open(path, "rb") as f:
-            st.download_button(
-                "Download model", data=f.read(), file_name=os.path.basename(path)
-            )
-
-
-def show_dashboard():
-    mem = MemoryManager()
-    st.title("JARVIS Web Dashboard")
-    for ticker, info in mem.memory.items():
-        if ticker in ("stats", "cooldowns"):
-            continue
-        st.write(
-            f"**{ticker}** - P/L: {info['total_profit']:.2f} from {info['trade_count']} trades"
-        )
-    stats = mem.memory.get("stats", {})
-    wins = stats.get("wins", 0)
-    losses = stats.get("losses", 0)
-    total = wins + losses
-    if total:
-        st.write(f"Win rate: {wins/total*100:.2f}%")
-
-    st.header("Solve Worksheet PDF")
-    uploaded = st.file_uploader("Upload PDF", type=["pdf"])
-    if uploaded:
-        path = "uploaded.pdf"
-        with open(path, "wb") as f:
-            f.write(uploaded.getvalue())
-        brain = AIBrain()
-        results = brain.solve_pdf(path)
-        for res in results.values():
-            st.markdown(res)
-
-    st.header("Blueprint Simulation")
-    blueprint = mem.memory.get("last_blueprint")
-    if blueprint:
-        st.image(blueprint)
-        if st.button("Run Simulation"):
-            from features.engineering_expert import EngineeringExpert
-
-            expert = EngineeringExpert()
-            result = expert.simulate(blueprint)
-            st.markdown(result)
-    else:
-        st.write("No blueprint available.")
-
-    st.header("Last 3D Model")
-    model = mem.memory.get("last_model")
-    if model:
-        _display_model(model)
-    else:
-        st.write("No 3D model available.")
-
-    st.header("Interactive Simulation")
-    sim_type = st.selectbox(
-        "Simulation type",
-        ["mechanical", "civil", "electrical", "thermal", "fluid"],
-    )
-    params = {}
-    if sim_type == "mechanical":
-        params["length"] = st.slider("Length (m)", 1.0, 10.0, 1.0)
-        params["force"] = st.slider("Force (N)", 100.0, 5000.0, 1000.0)
-        params["h"] = st.slider("Height (m)", 0.05, 0.5, 0.1)
-    elif sim_type == "civil":
-        params["span"] = st.slider("Span (m)", 1.0, 20.0, 5.0)
-        params["load"] = st.slider("Load (ton)", 1.0, 20.0, 1.0)
-    elif sim_type == "electrical":
-        params["voltage"] = st.slider("Voltage (V)", 1.0, 20.0, 5.0)
-    elif sim_type == "thermal":
-        params["length"] = st.slider("Length (m)", 0.5, 5.0, 1.0)
-        params["t1"] = st.slider("Temp 1 (C)", 0.0, 500.0, 100.0)
-        params["t2"] = st.slider("Temp 2 (C)", 0.0, 500.0, 0.0)
-    elif sim_type == "fluid":
-        params["width"] = st.slider("Width (m)", 0.5, 5.0, 1.0)
-        params["height"] = st.slider("Height (m)", 0.5, 5.0, 1.0)
-    if st.button("Run Interactive Simulation"):
-        from features.engineering_expert import EngineeringExpert
-
-        expert = EngineeringExpert()
-        st.markdown(expert.simulate(sim_type, params))
-
-    st.subheader("Optimization Mode")
-    if st.button("Optimize", key="opt_btn"):
-        from features.engineering_expert import EngineeringExpert
-
-        expert = EngineeringExpert()
-        best = expert.optimize(sim_type, "perf", {k: (0.5, v) if isinstance(v, float) else v for k, v in params.items()})
-        st.json(best)
-
-    st.subheader("AI Design Assistant")
-    desc = st.text_input("Describe your design goal")
-    if st.button("Get Design", key="design") and desc:
-        from features.engineering_expert import EngineeringExpert
-
-        expert = EngineeringExpert()
-        st.markdown(expert.design_assistant(desc))
-        if st.button("Run Full Analysis", key="chain"):
-            st.markdown(expert.analysis_chain(desc))
-
-    st.header("Sim Results")
-    sim_mem = MemoryManager(path="data/simulation_index.json")
-    tag_filter = st.text_input("Filter by tag")
-    sims_to_show = sim_mem.memory.get("simulations", [])
-    if tag_filter:
-        sims_to_show = [s for s in sims_to_show if tag_filter in s.get("tags", [])]
-    for sim in reversed(sims_to_show[-5:]):
-        ts = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(sim.get("timestamp", 0)))
-        with st.expander(f"{sim['prompt']} ({ts})"):
-            st.markdown(sim.get("result", ""))
-            st.image(sim.get("path", ""))
-            model_path = sim.get("model")
-            if model_path:
-                _display_model(model_path)
-            col1, col2 = st.columns(2)
-            if col1.button("Rerun", key=f"rerun_{ts}"):
-                from features.engineering_expert import EngineeringExpert
-
-                expert = EngineeringExpert()
-                st.markdown(expert.simulate(sim["prompt"]))
-            if col2.download_button(
-                "Export",
-                data=open(sim["path"], "rb").read(),
-                file_name=os.path.basename(sim["path"]),
-            ):
-                pass
-
-    st.header("Multi-Sim Comparison")
-    all_sims = sim_mem.memory.get("simulations", [])
-    sim_map = {s["uuid"]: s for s in all_sims}
-    selection = st.multiselect(
-        "Select up to 3 simulations",
-        list(sim_map.keys()),
-        format_func=lambda x: sim_map[x]["prompt"],
-        max_selections=3,
-    )
-    if selection:
-        cols = st.columns(len(selection))
-        for col, sid in zip(cols, selection):
-            sim = sim_map[sid]
-            with col:
-                st.markdown(f"**{sim['prompt']}**")
-                view = st.radio(
-                    "View",
-                    ["2D Plot", "3D Model"],
-                    key=f"view_{sid}",
-                )
-                if view == "3D Model" and sim.get("model"):
-                    _display_model(sim["model"])
-                else:
-                    st.image(sim.get("path", ""))
-                st.write(sim.get("result", ""))
-                new_prompt = st.text_input(
-                    "Edit prompt",
-                    value=sim["prompt"],
-                    key=f"edit_{sid}",
-                )
-                if st.button("Run", key=f"run_{sid}"):
-                    from features.engineering_expert import EngineeringExpert
-
-                    expert = EngineeringExpert()
-                    st.markdown(expert.simulate(new_prompt))
-
-
-if __name__ == "__main__":
-    show_dashboard()
-# === FILE: gui/handlers/ai_handler.py ===
+# === FILE: gui\handlers\ai_handler.py ===
 """AI interaction helpers with contextual prompts and command parsing."""
 
-from __future__ import annotations
 
-import json
-import os
-import subprocess
-import requests
-import time
-from datetime import date
-from typing import List, Dict, Any
 
-from .memory_handler import top_memories, mark_used
-from .memory_handler import feedback_memories
-from .strategy_handler import load_stats, STRATEGIES
-import re
 
 
 CONFIG_PATH = "config.json"
@@ -2849,7 +2826,9 @@ def interpret_command(prompt: str) -> Dict[str, str]:
 def apply_feedback(memories: List[Dict[str, Any]], positive: bool) -> None:
     feedback_memories(memories, positive)
 
-# === FILE: gui/handlers/memory_handler.py ===
+
+# === FILE: gui\handlers\memory_handler.py ===
+
 MEMORY_PATH = "data/memory.json"
 DECAY_DAYS = 7
 DECAY_RATE = 0.1
@@ -2952,7 +2931,9 @@ def export_memory(path: str = "memory_export.json") -> str:
     with open(path, "w") as f:
         json.dump(data, f, indent=2)
     return path
-# === FILE: gui/handlers/strategy_handler.py ===
+
+# === FILE: gui\handlers\strategy_handler.py ===
+
 DATA_PATH = "data/strategy_stats.json"
 STRATEGIES = ["RSI", "EMA", "MACD"]
 AUTO_MODE = True
