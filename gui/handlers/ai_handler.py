@@ -13,6 +13,7 @@ from typing import List, Dict, Any
 from .memory_handler import top_memories, mark_used
 from .memory_handler import feedback_memories
 from .strategy_handler import load_stats, STRATEGIES
+import re
 
 
 CONFIG_PATH = "config.json"
@@ -55,11 +56,25 @@ def set_current_strategy(strategy: str) -> None:
 
 
 def _strategy_summary() -> str:
-    stats = load_stats().get(CURRENT_STRATEGY, {})
+    global CURRENT_STRATEGY
+    data = load_stats()
+    stats = data.get(CURRENT_STRATEGY, {})
+
+    # pick best win-rate strategy if no data for current
+    if not stats and isinstance(data, dict):
+        best, rate = CURRENT_STRATEGY, -1.0
+        for name, info in data.items():
+            w, l = info.get("wins", 0), info.get("losses", 0)
+            total = w + l
+            win_rate = (w / total) if total else 0.0
+            if win_rate > rate:
+                best, rate, stats = name, win_rate, info
+        CURRENT_STRATEGY = best
+
     pnl = stats.get("pnl", 0.0)
     wins = stats.get("wins", 0)
     losses = stats.get("losses", 0)
-    return f"{CURRENT_STRATEGY}: PnL ${pnl:.2f} (W {wins}/L {losses})"
+    return f"Current: {CURRENT_STRATEGY} | Wins: {wins} | Losses: {losses} | PnL: ${pnl:.2f}"
 
 
 def _build_context() -> Dict[str, object]:
@@ -72,15 +87,42 @@ def _build_context() -> Dict[str, object]:
     }
 
 
+def _context_block(context: Dict[str, object]) -> str:
+    mem_lines = []
+    for mem in context.get("top_memories", []):
+        ts = mem.get("timestamp")
+        if ts:
+            ts = time.strftime("%Y-%m-%d", time.localtime(float(ts)))
+        else:
+            ts = "unknown"
+        event = mem.get("event", "")
+        mem_lines.append(f"- {ts}: {event}")
+    mem_text = "\n".join(mem_lines)
+    strat_summary = context.get("strategy", "")
+    block = f"[MEMORY CONTEXT]\n{mem_text}\n\n[STRATEGY SUMMARY]\n{strat_summary}"
+    return block
+
+
+def _clean_response(text: str) -> str:
+    """Remove repeating prefixes like 'Jarvis:' or 'AI:' from model output."""
+    lines = []
+    for line in text.splitlines():
+        line = re.sub(r'^(?:Jarvis|AI|Assistant)\s*:\s*', '', line, flags=re.I)
+        if line.strip():
+            lines.append(line.strip())
+    return ' '.join(lines).strip()
+
+
 def ask_ai(prompt: str) -> str:
     """Send a prompt to the AI model with contextual information."""
     global _LAST_CONTEXT
     context = _build_context()
     _LAST_CONTEXT = context
-    background = json.dumps(context, indent=2)
+    block = _context_block(context)
+    full_prompt = f"{block}\n\n{prompt}\nJarvis:"
     payload = {
         "model": OLLAMA_MODEL,
-        "prompt": f"Context:\n{background}\n\nUser: {prompt}\nAI:",
+        "prompt": full_prompt,
         "stream": False,
     }
     response_text = "Error: AI engine unavailable."
@@ -95,7 +137,8 @@ def ask_ai(prompt: str) -> str:
     if "Error" in response_text:
         try:
             result = subprocess.run(
-                ["ollama", "run", OLLAMA_MODEL, payload["prompt"]],
+                ["ollama", "run", OLLAMA_MODEL],
+                input=full_prompt,
                 capture_output=True,
                 text=True,
                 timeout=30,
@@ -104,6 +147,8 @@ def ask_ai(prompt: str) -> str:
                 response_text = result.stdout.strip()
         except Exception:
             pass
+
+    response_text = _clean_response(response_text)
 
     _log_interaction(prompt, response_text, context)
     return response_text
