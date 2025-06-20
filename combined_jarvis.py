@@ -18,7 +18,6 @@ from typing import List, Dict, Any
 from uuid import uuid4
 import base64
 import csv
-import curses
 import feedparser
 import fitz
 import hashlib
@@ -41,24 +40,6 @@ import threading
 import time
 import tkinter as tk
 
-
-# === FILE: keep_alive.py ===
-from flask import Flask
-from threading import Thread
-
-app = Flask('')
-
-@app.route('/')
-def home():
-    return "I'm alive"
-
-def run():
-    app.run(host='0.0.0.0', port=8080)
-
-
-def keep_alive():
-    t = Thread(target=run)
-    t.start()
 
 # === FILE: autotrain.py ===
 import csv
@@ -199,6 +180,24 @@ class SyntheticTrainer:
                 self.save_progress()
             time.sleep(1)
 
+# === FILE: keep_alive.py ===
+from flask import Flask
+from threading import Thread
+
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "I'm alive"
+
+def run():
+    app.run(host='0.0.0.0', port=8080)
+
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
+
 # === FILE: sum_files.py ===
 import os
 import sys
@@ -318,359 +317,112 @@ def main() -> None:
     out.write_text("\n".join(json.dumps(r) for r in records))
     print(f"Wrote {len(records)} records to {out}")
 
-# === FILE: gui/handlers/memory_handler.py ===
-import json
-import os
-import time
-from typing import Any, List, Dict
+# === FILE: backend/main.py ===
 
-MEMORY_PATH = "data/memory.json"
-DECAY_DAYS = 7
-DECAY_RATE = 0.1
-
-
-def load_memory() -> Any:
-    if os.path.exists(MEMORY_PATH):
-        try:
-            with open(MEMORY_PATH, "r") as f:
-                return json.load(f)
-        except Exception:
-            return []
-    return []
-
-
-def save_memory(data: Any) -> None:
-    with open(MEMORY_PATH, "w") as f:
-        json.dump(data, f, indent=2)
-
-
-def _apply_decay(mem: Dict[str, Any]) -> None:
-    """Decay importance if memory unused for a period."""
-    last = mem.get("last_used", mem.get("timestamp", 0))
-    age_days = (time.time() - float(last)) / 86400
-    if age_days > DECAY_DAYS:
-        decay = (age_days - DECAY_DAYS) * DECAY_RATE
-        mem["importance"] = max(mem.get("importance", 1) - decay, 0)
-
-
-def top_memories(n: int = 5) -> List[Dict[str, Any]]:
-    data = load_memory()
-    memories: List[Dict[str, Any]] = []
-    if isinstance(data, list):
-        for mem in data:
-            _apply_decay(mem)
-        data.sort(key=lambda m: m.get("importance", 1), reverse=True)
-        save_memory(data)
-        memories = data[:n]
-    elif isinstance(data, dict):
-        for ticker, info in data.items():
-            if ticker in {"stats", "cooldowns"}:
-                continue
-            memories.append({"timestamp": ticker, "event": f"{info.get('total_profit', 0.0):.2f} P/L"})
-        memories = memories[:n]
-    return memories
-
-
-def search_memory(keyword: str = "", start: float | None = None, end: float | None = None) -> List[Dict[str, Any]]:
-    data = load_memory()
-    if not isinstance(data, list):
-        return []
-    results: List[Dict[str, Any]] = []
-    for mem in data:
-        ts = mem.get("timestamp")
-        event = mem.get("event", "")
-        if keyword and keyword.lower() not in event.lower():
-            continue
-        if start and ts < start:
-            continue
-        if end and ts > end:
-            continue
-        results.append(mem)
-    return results
-
-
-def mark_used(memories: List[Dict[str, Any]]) -> None:
-    data = load_memory()
-    if not isinstance(data, list):
-        return
-    changed = False
-    for mem in data:
-        for m in memories:
-            if mem.get("timestamp") == m.get("timestamp"):
-                mem["importance"] = mem.get("importance", 1) + 1
-                mem["last_used"] = time.time()
-                changed = True
-    if changed:
-        save_memory(data)
-
-
-def feedback_memories(memories: List[Dict[str, Any]], positive: bool = True) -> None:
-    data = load_memory()
-    if not isinstance(data, list):
-        return
-    changed = False
-    for mem in data:
-        for m in memories:
-            if mem.get("timestamp") == m.get("timestamp"):
-                delta = 1 if positive else -1
-                mem["importance"] = max(mem.get("importance", 1) + delta, 0)
-                if not positive:
-                    mem["flagged"] = True
-                changed = True
-    if changed:
-        save_memory(data)
-
-
-def export_memory(path: str = "memory_export.json") -> str:
-    data = load_memory()
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
-    return path
-
-# === FILE: gui/handlers/strategy_handler.py ===
-import json
-import os
-from typing import Dict, List, Any
-
-DATA_PATH = "data/strategy_stats.json"
-STRATEGIES = ["RSI", "EMA", "MACD"]
-AUTO_MODE = True
-
-
-def load_stats() -> Dict[str, Any]:
-    if os.path.exists(DATA_PATH):
-        try:
-            with open(DATA_PATH, "r") as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
-
-
-def pnl_history(strategy: str) -> List[float]:
-    stats = load_stats().get(strategy, {})
-    return stats.get("history", [])
-
-
-def toggle_auto() -> None:
-    global AUTO_MODE
-    AUTO_MODE = not AUTO_MODE
-
-
-def switch_strategy(current: str) -> str:
-    idx = STRATEGIES.index(current) if current in STRATEGIES else 0
-    idx = (idx + 1) % len(STRATEGIES)
-    return STRATEGIES[idx]
-
-# === FILE: gui/handlers/ai_handler.py ===
-"""AI interaction helpers with contextual prompts and command parsing."""
-
-
-import json
-import os
 import subprocess
-import requests
+import threading
 import time
-from datetime import date
-from typing import List, Dict, Any
+from pathlib import Path
 
-import re
+def main():
+    brain = AIBrain()
+    print("🤖 JARVIS is online. Type 'exit' to quit.")
+    online_mode = True  # Turn this False to go fully offline
 
+    # ==== background autotrain setup ====
+    base_dir = Path(__file__).resolve().parent.parent
+    log_dir = base_dir / "logs"
+    log_dir.mkdir(exist_ok=True)
+    lock_file = base_dir / "autotrain.lock"
 
-CONFIG_PATH = "config.json"
+    stop_event = threading.Event()
 
+    def start_autotrain() -> tuple[subprocess.Popen, object]:
+        if lock_file.exists():
+            try:
+                pid = int(lock_file.read_text().strip())
+                if pid > 0 and Path(f"/proc/{pid}").exists():
+                    return None, None
+            except Exception:
+                pass
+            lock_file.unlink(missing_ok=True)
 
-def _load_model() -> str:
-    """Return model name from config.json or default."""
-    if os.path.exists(CONFIG_PATH):
-        try:
-            with open(CONFIG_PATH, "r") as f:
-                data = json.load(f)
-                if isinstance(data, dict) and data.get("model"):
-                    return str(data["model"])
-        except Exception:
-            pass
-    return "jarvisbrain"
+        log_path = log_dir / "autotrain.log"
+        log_f = open(log_path, "a")
+        proc = subprocess.Popen(
+            ["python", "autotrain.py"],
+            cwd=str(base_dir),
+            stdout=log_f,
+            stderr=log_f,
+        )
+        lock_file.write_text(str(proc.pid))
+        return proc, log_f
 
+    def monitor_autotrain(event: threading.Event):
+        proc, log_f = start_autotrain()
+        while not event.is_set():
+            if proc and proc.poll() is not None:
+                if log_f:
+                    log_f.write(f"AutoTrain exited with {proc.returncode}, restarting...\n")
+                    log_f.flush()
+                proc, log_f = start_autotrain()
+            time.sleep(5)
+        if proc and proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=10)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
+        if log_f:
+            log_f.close()
+        lock_file.unlink(missing_ok=True)
 
-OLLAMA_MODEL = _load_model()
-ENDPOINT = "http://localhost:11434/api/generate"
+    monitor_thread = threading.Thread(
+        target=monitor_autotrain, args=(stop_event,), daemon=True
+    )
+    monitor_thread.start()
+    reflect_thread = SelfReflection()
+    audit_thread = SelfAudit()
+    dashboard_thread = TerminalDashboard(audit=audit_thread)
+    reflect_thread.start()
+    audit_thread.start()
+    dashboard_thread.start()
 
-# history of user commands
-_commands: List[str] = []
-_LAST_CONTEXT: Dict[str, object] | None = None
-
-# currently selected trading strategy
-CURRENT_STRATEGY = "RSI"
-
-
-def record_command(cmd: str) -> None:
-    """Store user command for context."""
-    _commands.append(cmd)
-    if len(_commands) > 20:
-        del _commands[0]
-
-
-def set_current_strategy(strategy: str) -> None:
-    global CURRENT_STRATEGY
-    CURRENT_STRATEGY = strategy
-
-
-def _strategy_summary() -> str:
-    global CURRENT_STRATEGY
-    data = load_stats()
-    stats = data.get(CURRENT_STRATEGY, {})
-
-    # pick best win-rate strategy if no data for current
-    if not stats and isinstance(data, dict):
-        best, rate = CURRENT_STRATEGY, -1.0
-        for name, info in data.items():
-            wins = info.get("wins", 0)
-            losses = info.get("losses", 0)
-            total = wins + losses
-            win_rate = (wins / total) if total else 0.0
-            if win_rate > rate:
-                best, rate, stats = name, win_rate, info
-        CURRENT_STRATEGY = best
-
-    pnl = stats.get("pnl", 0.0)
-    wins = stats.get("wins", 0)
-    losses = stats.get("losses", 0)
-    return f"Current: {CURRENT_STRATEGY} | Wins: {wins} | Losses: {losses} | PnL: ${pnl:.2f}"
-
-
-def _build_context() -> Dict[str, object]:
-    memories = top_memories(3)
-    mark_used(memories)
-    return {
-        "top_memories": memories,
-        "strategy": _strategy_summary(),
-        "recent_commands": _commands[-3:],
-    }
-
-
-def _context_block(context: Dict[str, object]) -> str:
-    mem_lines = []
-    for mem in context.get("top_memories", []):
-        ts = mem.get("timestamp")
-        if ts:
-            ts = time.strftime("%Y-%m-%d", time.localtime(float(ts)))
-        else:
-            ts = "unknown"
-        event = mem.get("event", "")
-        mem_lines.append(f"- {ts}: {event}")
-    mem_text = "\n".join(mem_lines)
-    strat_summary = context.get("strategy", "")
-    block = f"[MEMORY CONTEXT]\n{mem_text}\n\n[STRATEGY SUMMARY]\n{strat_summary}"
-    return block
-
-
-def _clean_response(text: str) -> str:
-    """Remove repeating prefixes like 'Jarvis:' or 'AI:' from model output."""
-    lines = []
-    for line in text.splitlines():
-        line = re.sub(r'^(?:Jarvis|AI|Assistant)\s*:\s*', '', line, flags=re.I)
-        if line.strip():
-            lines.append(line.strip())
-    return ' '.join(lines).strip()
-
-
-def ask_ai(prompt: str) -> str:
-    """Send a prompt to the AI model with contextual information."""
-    global _LAST_CONTEXT
-    context = _build_context()
-    _LAST_CONTEXT = context
-    block = _context_block(context)
-    full_prompt = f"{block}\n\n{prompt}\nJarvis:"
-    payload = {
-        "model": OLLAMA_MODEL,
-        "prompt": full_prompt,
-        "stream": False,
-    }
-    response_text = "Error: AI engine unavailable."
     try:
-        resp = requests.post(ENDPOINT, json=payload, timeout=30)
-        if resp.status_code == 200:
-            data = resp.json()
-            if isinstance(data, dict):
-                response_text = data.get("response", "").strip()
-    except Exception:
-        pass
-    if "Error" in response_text:
-        try:
-            result = subprocess.run(
-                ["ollama", "run", OLLAMA_MODEL],
-                input=full_prompt,
-                capture_output=True,
-                text=True,
-                timeout=30,
-            )
-            if result.stdout:
-                response_text = result.stdout.strip()
-        except Exception:
-            pass
+        while True:
+            prompt = input("🧠 You: ").strip()
+            if prompt.lower() == "exit":
+                print("👋 JARVIS shutting down.")
+                break
 
-    response_text = _clean_response(response_text)
+            if online_mode and prompt.lower().startswith("search:"):
+                query = prompt.split("search:", 1)[-1].strip()
+                response = web_search(query)
+            elif prompt.lower().startswith("trade"):
+                _, *symbols = prompt.split()
+                run_autotrader(symbols or None)
+                response = "Trade executed"
+            else:
+                response = brain.ask(prompt)
 
-    _log_interaction(prompt, response_text, context)
-    return response_text
-
-
-def last_context() -> Dict[str, object] | None:
-    return _LAST_CONTEXT
-
-
-def _log_interaction(user_prompt: str, ai_response: str, context: Dict[str, object]) -> None:
-    entry = {
-        "timestamp": time.time(),
-        "prompt": user_prompt,
-        "response": ai_response,
-        "strategy": context.get("strategy"),
-        "memories": context.get("top_memories"),
-    }
-    day = date.today().isoformat()
-    path = f"logs/self_audit/{day}.json"
-    os.makedirs("logs/self_audit", exist_ok=True)
-    data: List[Dict[str, object]] = []
-    if os.path.exists(path):
-        try:
-            with open(path) as f:
-                data = json.load(f)
-        except Exception:
-            data = []
-    data.append(entry)
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
-
-
-def interpret_command(prompt: str) -> Dict[str, str]:
-    text = prompt.lower()
-    if "switch strategy" in text:
-        for s in STRATEGIES:
-            if s.lower() in text:
-                return {"action": "switch_strategy", "strategy": s}
-        return {"action": "switch_strategy"}
-    if "pause trading" in text:
-        return {"action": "pause_trading"}
-    if "show history" in text:
-        return {"action": "show_history"}
-    return {"action": "none"}
-
-
-def apply_feedback(memories: List[Dict[str, Any]], positive: bool) -> None:
-    feedback_memories(memories, positive)
-
-# === FILE: backend/server.py ===
-from flask import Flask, request, jsonify
-
-app = Flask(__name__)
-
-
-@app.route("/trade")
-def trade():
-    symbol = request.args.get("symbol", "AAPL")
-    run_autotrader([symbol])
-    return jsonify({"status": "ok"})
+            if response.startswith("[Error"):
+                dashboard_thread.fail += 1
+            else:
+                dashboard_thread.success += 1
+            dashboard_thread.log_interaction(prompt, response)
+            print(f"🤖 JARVIS: {response}")
+    except KeyboardInterrupt:
+        print("\n👋 JARVIS shutting down.")
+    finally:
+        stop_event.set()
+        reflect_thread.stop()
+        audit_thread.stop()
+        dashboard_thread.stop()
+        monitor_thread.join()
+        reflect_thread.join()
+        audit_thread.join()
+        dashboard_thread.join()
 
 # === FILE: backend/daily_report.py ===
 from pathlib import Path
@@ -872,113 +624,6 @@ def show_dashboard():
 
                     expert = EngineeringExpert()
                     st.markdown(expert.simulate(new_prompt))
-
-# === FILE: backend/main.py ===
-
-import subprocess
-import threading
-import time
-from pathlib import Path
-
-def main():
-    brain = AIBrain()
-    print("🤖 JARVIS is online. Type 'exit' to quit.")
-    online_mode = True  # Turn this False to go fully offline
-
-    # ==== background autotrain setup ====
-    base_dir = Path(__file__).resolve().parent.parent
-    log_dir = base_dir / "logs"
-    log_dir.mkdir(exist_ok=True)
-    lock_file = base_dir / "autotrain.lock"
-
-    stop_event = threading.Event()
-
-    def start_autotrain() -> tuple[subprocess.Popen, object]:
-        if lock_file.exists():
-            try:
-                pid = int(lock_file.read_text().strip())
-                if pid > 0 and Path(f"/proc/{pid}").exists():
-                    return None, None
-            except Exception:
-                pass
-            lock_file.unlink(missing_ok=True)
-
-        log_path = log_dir / "autotrain.log"
-        log_f = open(log_path, "a")
-        proc = subprocess.Popen(
-            ["python", "autotrain.py"],
-            cwd=str(base_dir),
-            stdout=log_f,
-            stderr=log_f,
-        )
-        lock_file.write_text(str(proc.pid))
-        return proc, log_f
-
-    def monitor_autotrain(event: threading.Event):
-        proc, log_f = start_autotrain()
-        while not event.is_set():
-            if proc and proc.poll() is not None:
-                if log_f:
-                    log_f.write(f"AutoTrain exited with {proc.returncode}, restarting...\n")
-                    log_f.flush()
-                proc, log_f = start_autotrain()
-            time.sleep(5)
-        if proc and proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                proc.wait()
-        if log_f:
-            log_f.close()
-        lock_file.unlink(missing_ok=True)
-
-    monitor_thread = threading.Thread(
-        target=monitor_autotrain, args=(stop_event,), daemon=True
-    )
-    monitor_thread.start()
-    reflect_thread = SelfReflection()
-    audit_thread = SelfAudit()
-    dashboard_thread = TerminalDashboard(audit=audit_thread)
-    reflect_thread.start()
-    audit_thread.start()
-    dashboard_thread.start()
-
-    try:
-        while True:
-            prompt = input("🧠 You: ").strip()
-            if prompt.lower() == "exit":
-                print("👋 JARVIS shutting down.")
-                break
-
-            if online_mode and prompt.lower().startswith("search:"):
-                query = prompt.split("search:", 1)[-1].strip()
-                response = web_search(query)
-            elif prompt.lower().startswith("trade"):
-                _, *symbols = prompt.split()
-                run_autotrader(symbols or None)
-                response = "Trade executed"
-            else:
-                response = brain.ask(prompt)
-
-            if response.startswith("[Error"):
-                dashboard_thread.fail += 1
-            else:
-                dashboard_thread.success += 1
-            dashboard_thread.log_interaction(prompt, response)
-            print(f"🤖 JARVIS: {response}")
-    except KeyboardInterrupt:
-        print("\n👋 JARVIS shutting down.")
-    finally:
-        stop_event.set()
-        reflect_thread.stop()
-        audit_thread.stop()
-        dashboard_thread.stop()
-        monitor_thread.join()
-        reflect_thread.join()
-        audit_thread.join()
-        dashboard_thread.join()
 
 # === FILE: backend/gui_dashboard.py ===
 """Tkinter-based dashboard for interacting with the trading backend."""
@@ -1270,138 +915,62 @@ class JarvisGUI(tk.Tk):
                 return {}
         return {}
 
-# === FILE: backend/features/self_reflect.py ===
-import threading
-import time
+# === FILE: backend/server.py ===
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
 
 
+@app.route("/trade")
+def trade():
+    symbol = request.args.get("symbol", "AAPL")
+    run_autotrader([symbol])
+    return jsonify({"status": "ok"})
 
-class SelfReflection(threading.Thread):
-    def __init__(self, interval: int = 300):
-        super().__init__(daemon=True)
-        self.interval = interval
-        self.stop_event = threading.Event()
-        self.brain = AIBrain()
-        self.memory = QAMemory()
-        self.evaluator = Evaluator()
-
-    def run(self):
-        while not self.stop_event.is_set():
-            entry = self.memory.get_random()
-            if entry:
-                new_answer = self.brain.ask(entry["question"])
-                score_old = self.evaluator.score(
-                    entry["question"], entry["answer"], entry["source"]
-                )
-                score_new = self.evaluator.score(
-                    entry["question"], new_answer, entry["source"]
-                )
-                if score_new > score_old:
-                    self.memory.add(
-                        entry["question"], new_answer, entry["source"], score_new
-                    )
-                    self.evaluator.update_leaderboard(entry["question"], score_new)
-            time.sleep(self.interval)
-
-    def stop(self):
-        self.stop_event.set()
-
-# === FILE: backend/features/qa_memory.py ===
-import json
-import time
-from pathlib import Path
-from difflib import SequenceMatcher
+# === FILE: backend/features/strategies.py ===
+import pandas as pd
 
 
-class QAMemory:
-    def __init__(self, path: str = "data/qa_memory.json"):
-        self.path = Path(path)
-        self.data = []
-        self.pruned_total = 0
-        self.load()
+def compute_rsi(series: pd.Series, period: int = 14) -> pd.Series:
+    delta = series.diff()
+    up = delta.clip(lower=0)
+    down = -1 * delta.clip(upper=0)
+    ma_up = up.rolling(window=period, min_periods=period).mean()
+    ma_down = down.rolling(window=period, min_periods=period).mean()
+    rs = ma_up / ma_down
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
 
-    def load(self):
-        self.pruned_total = 0
-        if self.path.exists():
-            try:
-                with open(self.path) as f:
-                    self.data = json.load(f)
-            except Exception:
-                self.data = []
-        self.prune()
 
-    def save(self):
-        self.path.parent.mkdir(exist_ok=True)
-        with open(self.path, "w") as f:
-            json.dump(self.data, f, indent=2)
+def rsi_strategy(prices: pd.Series) -> str:
+    rsi = compute_rsi(prices).iloc[-1]
+    if rsi < 30:
+        return "buy"
+    if rsi > 70:
+        return "sell"
+    return "hold"
 
-    def _is_duplicate(self, prompt: str) -> bool:
-        for entry in self.data:
-            if entry.get("question") == prompt:
-                return True
-        return False
 
-    def add(
-        self,
-        question: str,
-        answer: str,
-        source: str,
-        confidence: float,
-        tags: list[str] | None = None,
-    ) -> None:
-        tokens = len(answer.split())
-        if tokens < 10:
-            return
-        if confidence < 0.5 and self._is_duplicate(question):
-            return
-        entry = {
-            "question": question,
-            "answer": answer,
-            "source": source,
-            "tokens": tokens,
-            "confidence": confidence,
-            "timestamp": time.time(),
-        }
-        if tags:
-            entry["tags"] = tags
-        self._replace_outdated(entry)
-        if not self._is_duplicate(question):
-            self.data.append(entry)
-        self.save()
-        self.prune()
+def ema_strategy(prices: pd.Series, short: int = 12, long: int = 26) -> str:
+    ema_short = prices.ewm(span=short, adjust=False).mean()
+    ema_long = prices.ewm(span=long, adjust=False).mean()
+    if ema_short.iloc[-1] > ema_long.iloc[-1] and ema_short.iloc[-2] <= ema_long.iloc[-2]:
+        return "buy"
+    if ema_short.iloc[-1] < ema_long.iloc[-1] and ema_short.iloc[-2] >= ema_long.iloc[-2]:
+        return "sell"
+    return "hold"
 
-    def _replace_outdated(self, new_entry: dict):
-        year_tokens = [t for t in new_entry["answer"].split() if t.isdigit() and len(t) == 4]
-        if not year_tokens:
-            return
-        latest_year = max(map(int, year_tokens))
-        for idx, entry in enumerate(list(self.data)):
-            old_years = [t for t in entry["answer"].split() if t.isdigit() and len(t) == 4]
-            if old_years and max(map(int, old_years)) < latest_year:
-                if SequenceMatcher(None, entry["question"], new_entry["question"]).ratio() > 0.6:
-                    self.data[idx] = new_entry
 
-    def prune(self):
-        seen = {}
-        for entry in sorted(self.data, key=lambda e: e.get("timestamp", 0)):
-            if entry.get("tokens", 0) < 10:
-                self.pruned_total += 1
-                continue
-            key = entry["question"]
-            if key in seen:
-                if entry.get("timestamp", 0) > seen[key].get("timestamp", 0):
-                    seen[key] = entry
-                    self.pruned_total += 1
-            else:
-                seen[key] = entry
-        self.data = list(seen.values())
-        self.save()
-
-    def get_random(self):
-        if not self.data:
-            return None
-        import random
-        return random.choice(self.data)
+def macd_strategy(prices: pd.Series) -> str:
+    ema12 = prices.ewm(span=12, adjust=False).mean()
+    ema26 = prices.ewm(span=26, adjust=False).mean()
+    macd = ema12 - ema26
+    signal = macd.ewm(span=9, adjust=False).mean()
+    if macd.iloc[-1] > signal.iloc[-1] and macd.iloc[-2] <= signal.iloc[-2]:
+        return "buy"
+    if macd.iloc[-1] < signal.iloc[-1] and macd.iloc[-2] >= signal.iloc[-2]:
+        return "sell"
+    return "hold"
 
 # === FILE: backend/features/ai_brain.py ===
 import requests
@@ -1505,234 +1074,33 @@ class AIBrain:
         return answer
 
 # === FILE: backend/features/dashboard.py ===
-import curses
-import json
 import threading
 import time
-from pathlib import Path
-
 
 
 class TerminalDashboard(threading.Thread):
+    """Minimal dashboard stub for Windows compatibility."""
+
     def __init__(self, refresh: int = 2, audit=None):
         super().__init__(daemon=True)
         self.refresh = refresh
         self.stop_event = threading.Event()
-        self.paused = False
-        self.paused_since: float | None = None
-        self.paused_total = 0.0
-        self.log_msg = ""
-        self.flash_until = 0.0
-        self.memory = QAMemory()
-        self.start_time = time.time()
         self.audit = audit
         self.success = 0
         self.fail = 0
         self.interactions: list[tuple[str, str]] = []
-        self.last_interaction = time.time()
 
     def log_interaction(self, question: str, answer: str) -> None:
         self.interactions.append((question, answer))
         if len(self.interactions) > 5:
             self.interactions.pop(0)
-        self.last_interaction = time.time()
 
-    def _toggle_pause(self):
-        pause_file = Path("autotrain.pause")
-        if not self.paused:
-            pause_file.write_text("1")
-            self.paused_since = time.time()
-            self.paused = True
-            self.log_msg = "Paused autotrain"
-        else:
-            pause_file.unlink(missing_ok=True)
-            if self.paused_since:
-                self.paused_total += time.time() - self.paused_since
-            self.paused_since = None
-            self.paused = False
-            self.log_msg = "Resumed autotrain"
-
-    def _save_snapshot(self):
-        path = Path("logs/memory_backup.json")
-        path.parent.mkdir(exist_ok=True)
-        with open(path, "w") as f:
-            json.dump(self.memory.data, f, indent=2)
-        self.flash_until = time.time() + 2
-        self.log_msg = "Snapshot saved"
-
-    def _manual_search(self):
-        if self.interactions:
-            query = self.interactions[-1][0]
-            web_search(query)
-            self.log_msg = f"Search triggered for: {query[:30]}"
-
-    def _clear_activity(self):
-        self.interactions = []
-        self.log_msg = "Activity cleared"
-
-    def _color(self, score: float) -> int:
-        if score >= 0.75:
-            return curses.color_pair(1)
-        if score >= 0.5:
-            return curses.color_pair(2)
-        return curses.color_pair(3)
-
-    def _topic(self, question: str) -> str:
-        words = question.lower().split()
-        for token in reversed(words):
-            token = token.strip(".,?!")
-            if token:
-                return token
-        return ""
-
-    def run(self):
-        try:
-            curses.wrapper(self.loop)
-        except Exception:
-            pass
-
-    def loop(self, stdscr):
-        curses.curs_set(0)
-        curses.start_color()
-        curses.init_pair(1, curses.COLOR_GREEN, curses.COLOR_BLACK)
-        curses.init_pair(2, curses.COLOR_YELLOW, curses.COLOR_BLACK)
-        curses.init_pair(3, curses.COLOR_RED, curses.COLOR_BLACK)
-        stdscr.nodelay(True)
+    def run(self) -> None:
         while not self.stop_event.is_set():
-            stdscr.erase()
-            self.memory.load()
-            total = len(self.memory.data)
-            tokens = sum(e.get("tokens", 0) for e in self.memory.data)
-            avg_conf = (
-                sum(e.get("confidence", 0) for e in self.memory.data) / total
-                if total
-                else 0
-            )
-            now = time.time()
-            review = [
-                e
-                for e in self.memory.data
-                if now - e.get("timestamp", 0) > 7 * 86400
-                or e.get("confidence", 1) < 0.5
-            ]
-            unique_q = {e["question"] for e in self.memory.data}
-            dup_rate = 1 - (len(unique_q) / total) if total else 0
-            learning_rate = total / ((time.time() - self.start_time) / 60 + 1e-6)
-            active = self.memory.data[-1]["source"] if self.memory.data else "N/A"
-
-            mode = "Paused" if self.paused else "Active"
-            if self.paused:
-                elapsed = int(time.time() - (self.paused_since or time.time()))
-                mode += f" ({elapsed}s)"
-
-            stdscr.addstr(0, 0, "=== JARVIS Console ===", curses.A_BOLD)
-            stdscr.addstr(1, 0, f"Status: {mode}")
-
-            row = 3
-            stdscr.addstr(row, 0, "Learning", curses.A_UNDERLINE)
-            row += 1
-            stdscr.addstr(row, 2, f"Success: {self.success}", curses.color_pair(1))
-            row += 1
-            stdscr.addstr(row, 2, f"Failures: {self.fail}", curses.color_pair(3))
-
-            row += 2
-            stdscr.addstr(row, 0, "Memory", curses.A_UNDERLINE)
-            row += 1
-            stdscr.addstr(row, 2, f"Total stored: {total}")
-            row += 1
-            stdscr.addstr(row, 2, f"Avg confidence: {avg_conf:.2f}", self._color(avg_conf))
-            row += 1
-            stdscr.addstr(row, 2, f"Learning rate: {learning_rate:.2f}/min")
-            row += 1
-            stdscr.addstr(row, 2, f"Token usage: {tokens}")
-            row += 1
-            stdscr.addstr(row, 2, f"Duplicate rate: {dup_rate:.2f}")
-            row += 1
-            color_pruned = curses.color_pair(3) if self.memory.pruned_total else curses.color_pair(1)
-            stdscr.addstr(row, 2, f"Pruned: {self.memory.pruned_total}", color_pruned)
-            row += 1
-            color_review = curses.color_pair(2) if len(review) else curses.color_pair(1)
-            stdscr.addstr(row, 2, f"Needs review: {len(review)}", color_review)
-            row += 1
-            stdscr.addstr(row, 2, f"Active source: {active}")
-
-            topic_counts = {}
-            for e in review:
-                t = self._topic(e.get("question", ""))
-                if t:
-                    topic_counts[t] = topic_counts.get(t, 0) + 1
-            top_topics = sorted(topic_counts.items(), key=lambda x: x[1], reverse=True)[:3]
-            topics_str = ", ".join(t for t, _ in top_topics) if top_topics else "None"
-            row += 1
-            stdscr.addstr(row, 2, f"Top outdated topics: {topics_str}")
-
-            row += 2
-            stdscr.addstr(row, 0, "Audit", curses.A_UNDERLINE)
-            status = "N/A"
-            if self.audit:
-                status = f"{self.audit.checked}/{self.audit.check_total} checked, {self.audit.updated_last} updated"
-            row += 1
-            stdscr.addstr(row, 2, status)
-
-            row += 2
-            stdscr.addstr(row, 0, "Recent", curses.A_UNDERLINE)
-            for i, (q, a) in enumerate(reversed(self.interactions[-3:])):
-                row += 1
-                stdscr.addstr(row, 2, f"Q: {q}")
-                row += 1
-                stdscr.addstr(row, 4, f"A: {a.splitlines()[0][:50]}")
-
-            row += 1
-            if time.time() - self.last_interaction > self.refresh * 2:
-                stdscr.addstr(row, 0, "Awaiting questions...", curses.A_DIM)
-            else:
-                stdscr.addstr(row, 0, " " * 20)
-
-            max_y, max_x = stdscr.getmaxyx()
-            controls = "[p] pause/resume  [m] snapshot  [r] search  [c] clear log  [q] quit"
-            stdscr.addstr(max_y - 3, 0, controls[: max_x - 1])
-            attr = curses.A_REVERSE if self.flash_until > time.time() else curses.A_DIM
-            stdscr.addstr(max_y - 2, 0, self.log_msg[: max_x - 1], attr)
-            stdscr.refresh()
-
-            ch = stdscr.getch()
-            if ch != -1:
-                try:
-                    ch = chr(ch)
-                except ValueError:
-                    ch = ""
-                if ch == "p":
-                    self._toggle_pause()
-                elif ch == "m":
-                    self._save_snapshot()
-                elif ch == "r":
-                    self._manual_search()
-                elif ch == "c":
-                    self._clear_activity()
-                elif ch == "q":
-                    self.log_msg = "Dashboard closed"
-                    self.stop_event.set()
-                    break
             time.sleep(self.refresh)
 
-    def stop(self):
+    def stop(self) -> None:
         self.stop_event.set()
-
-# === FILE: backend/features/telegram_alerts.py ===
-import os
-import requests
-
-
-def send_telegram_alert(message: str) -> None:
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID")
-    if not token or not chat_id:
-        return
-    url = f"https://api.telegram.org/bot{token}/sendMessage"
-    try:
-        requests.post(url, json={"chat_id": chat_id, "text": message}, timeout=5)
-    except Exception:
-        pass
 
 # === FILE: backend/features/web_search.py ===
 import requests
@@ -1749,50 +1117,73 @@ def web_search(query):
     except Exception as e:
         return f"[Web search error: {e}]"
 
-# === FILE: backend/features/strategies.py ===
-import pandas as pd
+# === FILE: backend/features/trending.py ===
+import random
+import time
+from pathlib import Path
+from typing import List
+
+import feedparser
+
+RSS_FEEDS = [
+    "https://feeds.bbci.co.uk/news/rss.xml",
+    "https://feeds.reuters.com/reuters/topNews",
+    "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
+]
 
 
-def compute_rsi(series: pd.Series, period: int = 14) -> pd.Series:
-    delta = series.diff()
-    up = delta.clip(lower=0)
-    down = -1 * delta.clip(upper=0)
-    ma_up = up.rolling(window=period, min_periods=period).mean()
-    ma_down = down.rolling(window=period, min_periods=period).mean()
-    rs = ma_up / ma_down
-    rsi = 100 - (100 / (1 + rs))
-    return rsi
+class TrendingTopics:
+    def __init__(self, cache_file: str = "data/trending.json"):
+        self.cache = Path(cache_file)
+        self.topics: List[str] = []
+        self.last_fetch = 0
+        self.load()
 
+    def load(self):
+        if self.cache.exists():
+            try:
+                import json
+                data = json.loads(self.cache.read_text())
+                self.topics = data.get("topics", [])
+                self.last_fetch = data.get("timestamp", 0)
+            except Exception:
+                pass
 
-def rsi_strategy(prices: pd.Series) -> str:
-    rsi = compute_rsi(prices).iloc[-1]
-    if rsi < 30:
-        return "buy"
-    if rsi > 70:
-        return "sell"
-    return "hold"
+    def save(self):
+        self.cache.parent.mkdir(exist_ok=True)
+        import json
+        self.cache.write_text(
+            json.dumps({"topics": self.topics, "timestamp": self.last_fetch}, indent=2)
+        )
 
+    def fetch(self):
+        if time.time() - self.last_fetch < 24 * 3600 and self.topics:
+            return self.topics
+        topics = []
+        for url in RSS_FEEDS:
+            try:
+                feed = feedparser.parse(url)
+                for entry in feed.entries[:5]:
+                    topics.append(entry.title)
+            except Exception:
+                continue
+        if topics:
+            self.topics = topics[:20]
+            self.last_fetch = time.time()
+            self.save()
+        return self.topics
 
-def ema_strategy(prices: pd.Series, short: int = 12, long: int = 26) -> str:
-    ema_short = prices.ewm(span=short, adjust=False).mean()
-    ema_long = prices.ewm(span=long, adjust=False).mean()
-    if ema_short.iloc[-1] > ema_long.iloc[-1] and ema_short.iloc[-2] <= ema_long.iloc[-2]:
-        return "buy"
-    if ema_short.iloc[-1] < ema_long.iloc[-1] and ema_short.iloc[-2] >= ema_long.iloc[-2]:
-        return "sell"
-    return "hold"
-
-
-def macd_strategy(prices: pd.Series) -> str:
-    ema12 = prices.ewm(span=12, adjust=False).mean()
-    ema26 = prices.ewm(span=26, adjust=False).mean()
-    macd = ema12 - ema26
-    signal = macd.ewm(span=9, adjust=False).mean()
-    if macd.iloc[-1] > signal.iloc[-1] and macd.iloc[-2] <= signal.iloc[-2]:
-        return "buy"
-    if macd.iloc[-1] < signal.iloc[-1] and macd.iloc[-2] >= signal.iloc[-2]:
-        return "sell"
-    return "hold"
+    def random_topic(self) -> str:
+        topics = self.fetch()
+        if not topics:
+            return random.choice([
+                "technology",
+                "science",
+                "finance",
+                "sports",
+                "culture",
+            ])
+        return random.choice(topics)
 
 # === FILE: backend/features/self_audit.py ===
 import threading
@@ -1863,6 +1254,103 @@ class SelfAudit(threading.Thread):
         if changed:
             self.memory.save()
 
+# === FILE: backend/features/qa_memory.py ===
+import json
+import time
+from pathlib import Path
+from difflib import SequenceMatcher
+
+
+class QAMemory:
+    def __init__(self, path: str = "data/qa_memory.json"):
+        self.path = Path(path)
+        self.data = []
+        self.pruned_total = 0
+        self.load()
+
+    def load(self):
+        self.pruned_total = 0
+        if self.path.exists():
+            try:
+                with open(self.path) as f:
+                    self.data = json.load(f)
+            except Exception:
+                self.data = []
+        self.prune()
+
+    def save(self):
+        self.path.parent.mkdir(exist_ok=True)
+        with open(self.path, "w") as f:
+            json.dump(self.data, f, indent=2)
+
+    def _is_duplicate(self, prompt: str) -> bool:
+        for entry in self.data:
+            if entry.get("question") == prompt:
+                return True
+        return False
+
+    def add(
+        self,
+        question: str,
+        answer: str,
+        source: str,
+        confidence: float,
+        tags: list[str] | None = None,
+    ) -> None:
+        tokens = len(answer.split())
+        if tokens < 10:
+            return
+        if confidence < 0.5 and self._is_duplicate(question):
+            return
+        entry = {
+            "question": question,
+            "answer": answer,
+            "source": source,
+            "tokens": tokens,
+            "confidence": confidence,
+            "timestamp": time.time(),
+        }
+        if tags:
+            entry["tags"] = tags
+        self._replace_outdated(entry)
+        if not self._is_duplicate(question):
+            self.data.append(entry)
+        self.save()
+        self.prune()
+
+    def _replace_outdated(self, new_entry: dict):
+        year_tokens = [t for t in new_entry["answer"].split() if t.isdigit() and len(t) == 4]
+        if not year_tokens:
+            return
+        latest_year = max(map(int, year_tokens))
+        for idx, entry in enumerate(list(self.data)):
+            old_years = [t for t in entry["answer"].split() if t.isdigit() and len(t) == 4]
+            if old_years and max(map(int, old_years)) < latest_year:
+                if SequenceMatcher(None, entry["question"], new_entry["question"]).ratio() > 0.6:
+                    self.data[idx] = new_entry
+
+    def prune(self):
+        seen = {}
+        for entry in sorted(self.data, key=lambda e: e.get("timestamp", 0)):
+            if entry.get("tokens", 0) < 10:
+                self.pruned_total += 1
+                continue
+            key = entry["question"]
+            if key in seen:
+                if entry.get("timestamp", 0) > seen[key].get("timestamp", 0):
+                    seen[key] = entry
+                    self.pruned_total += 1
+            else:
+                seen[key] = entry
+        self.data = list(seen.values())
+        self.save()
+
+    def get_random(self):
+        if not self.data:
+            return None
+        import random
+        return random.choice(self.data)
+
 # === FILE: backend/features/evaluator.py ===
 import csv
 from pathlib import Path
@@ -1916,73 +1404,57 @@ class Evaluator:
             writer.writeheader()
             writer.writerows(entries[:100])
 
-# === FILE: backend/features/trending.py ===
-import random
+# === FILE: backend/features/telegram_alerts.py ===
+import os
+import requests
+
+
+def send_telegram_alert(message: str) -> None:
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        return
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    try:
+        requests.post(url, json={"chat_id": chat_id, "text": message}, timeout=5)
+    except Exception:
+        pass
+
+# === FILE: backend/features/self_reflect.py ===
+import threading
 import time
-from pathlib import Path
-from typing import List
-
-import feedparser
-
-RSS_FEEDS = [
-    "https://feeds.bbci.co.uk/news/rss.xml",
-    "https://feeds.reuters.com/reuters/topNews",
-    "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
-]
 
 
-class TrendingTopics:
-    def __init__(self, cache_file: str = "data/trending.json"):
-        self.cache = Path(cache_file)
-        self.topics: List[str] = []
-        self.last_fetch = 0
-        self.load()
 
-    def load(self):
-        if self.cache.exists():
-            try:
-                import json
-                data = json.loads(self.cache.read_text())
-                self.topics = data.get("topics", [])
-                self.last_fetch = data.get("timestamp", 0)
-            except Exception:
-                pass
+class SelfReflection(threading.Thread):
+    def __init__(self, interval: int = 300):
+        super().__init__(daemon=True)
+        self.interval = interval
+        self.stop_event = threading.Event()
+        self.brain = AIBrain()
+        self.memory = QAMemory()
+        self.evaluator = Evaluator()
 
-    def save(self):
-        self.cache.parent.mkdir(exist_ok=True)
-        import json
-        self.cache.write_text(
-            json.dumps({"topics": self.topics, "timestamp": self.last_fetch}, indent=2)
-        )
+    def run(self):
+        while not self.stop_event.is_set():
+            entry = self.memory.get_random()
+            if entry:
+                new_answer = self.brain.ask(entry["question"])
+                score_old = self.evaluator.score(
+                    entry["question"], entry["answer"], entry["source"]
+                )
+                score_new = self.evaluator.score(
+                    entry["question"], new_answer, entry["source"]
+                )
+                if score_new > score_old:
+                    self.memory.add(
+                        entry["question"], new_answer, entry["source"], score_new
+                    )
+                    self.evaluator.update_leaderboard(entry["question"], score_new)
+            time.sleep(self.interval)
 
-    def fetch(self):
-        if time.time() - self.last_fetch < 24 * 3600 and self.topics:
-            return self.topics
-        topics = []
-        for url in RSS_FEEDS:
-            try:
-                feed = feedparser.parse(url)
-                for entry in feed.entries[:5]:
-                    topics.append(entry.title)
-            except Exception:
-                continue
-        if topics:
-            self.topics = topics[:20]
-            self.last_fetch = time.time()
-            self.save()
-        return self.topics
-
-    def random_topic(self) -> str:
-        topics = self.fetch()
-        if not topics:
-            return random.choice([
-                "technology",
-                "science",
-                "finance",
-                "sports",
-                "culture",
-            ])
-        return random.choice(topics)
+    def stop(self):
+        self.stop_event.set()
 
 # === FILE: backend/features/engineering_expert.py ===
 # pyright: reportMissingImports=false
@@ -2916,3 +2388,345 @@ class MemoryManager:
             stats["losses"] += 1
         self.save()
         return pnl
+
+# === FILE: gui/handlers/memory_handler.py ===
+import json
+import os
+import time
+from typing import Any, List, Dict
+
+MEMORY_PATH = "data/memory.json"
+DECAY_DAYS = 7
+DECAY_RATE = 0.1
+
+
+def load_memory() -> Any:
+    if os.path.exists(MEMORY_PATH):
+        try:
+            with open(MEMORY_PATH, "r") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
+
+
+def save_memory(data: Any) -> None:
+    with open(MEMORY_PATH, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def _apply_decay(mem: Dict[str, Any]) -> None:
+    """Decay importance if memory unused for a period."""
+    last = mem.get("last_used", mem.get("timestamp", 0))
+    age_days = (time.time() - float(last)) / 86400
+    if age_days > DECAY_DAYS:
+        decay = (age_days - DECAY_DAYS) * DECAY_RATE
+        mem["importance"] = max(mem.get("importance", 1) - decay, 0)
+
+
+def top_memories(n: int = 5) -> List[Dict[str, Any]]:
+    data = load_memory()
+    memories: List[Dict[str, Any]] = []
+    if isinstance(data, list):
+        for mem in data:
+            _apply_decay(mem)
+        data.sort(key=lambda m: m.get("importance", 1), reverse=True)
+        save_memory(data)
+        memories = data[:n]
+    elif isinstance(data, dict):
+        for ticker, info in data.items():
+            if ticker in {"stats", "cooldowns"}:
+                continue
+            memories.append({"timestamp": ticker, "event": f"{info.get('total_profit', 0.0):.2f} P/L"})
+        memories = memories[:n]
+    return memories
+
+
+def search_memory(keyword: str = "", start: float | None = None, end: float | None = None) -> List[Dict[str, Any]]:
+    data = load_memory()
+    if not isinstance(data, list):
+        return []
+    results: List[Dict[str, Any]] = []
+    for mem in data:
+        ts = mem.get("timestamp")
+        event = mem.get("event", "")
+        if keyword and keyword.lower() not in event.lower():
+            continue
+        if start and ts < start:
+            continue
+        if end and ts > end:
+            continue
+        results.append(mem)
+    return results
+
+
+def mark_used(memories: List[Dict[str, Any]]) -> None:
+    data = load_memory()
+    if not isinstance(data, list):
+        return
+    changed = False
+    for mem in data:
+        for m in memories:
+            if mem.get("timestamp") == m.get("timestamp"):
+                mem["importance"] = mem.get("importance", 1) + 1
+                mem["last_used"] = time.time()
+                changed = True
+    if changed:
+        save_memory(data)
+
+
+def feedback_memories(memories: List[Dict[str, Any]], positive: bool = True) -> None:
+    data = load_memory()
+    if not isinstance(data, list):
+        return
+    changed = False
+    for mem in data:
+        for m in memories:
+            if mem.get("timestamp") == m.get("timestamp"):
+                delta = 1 if positive else -1
+                mem["importance"] = max(mem.get("importance", 1) + delta, 0)
+                if not positive:
+                    mem["flagged"] = True
+                changed = True
+    if changed:
+        save_memory(data)
+
+
+def export_memory(path: str = "memory_export.json") -> str:
+    data = load_memory()
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
+    return path
+
+# === FILE: gui/handlers/ai_handler.py ===
+"""AI interaction helpers with contextual prompts and command parsing."""
+
+
+import json
+import os
+import subprocess
+import requests
+import time
+from datetime import date
+from typing import List, Dict, Any
+
+import re
+
+
+CONFIG_PATH = "config.json"
+
+
+def _load_model() -> str:
+    """Return model name from config.json or default."""
+    if os.path.exists(CONFIG_PATH):
+        try:
+            with open(CONFIG_PATH, "r") as f:
+                data = json.load(f)
+                if isinstance(data, dict) and data.get("model"):
+                    return str(data["model"])
+        except Exception:
+            pass
+    return "jarvisbrain"
+
+
+OLLAMA_MODEL = _load_model()
+ENDPOINT = "http://localhost:11434/api/generate"
+
+# history of user commands
+_commands: List[str] = []
+_LAST_CONTEXT: Dict[str, object] | None = None
+
+# currently selected trading strategy
+CURRENT_STRATEGY = "RSI"
+
+
+def record_command(cmd: str) -> None:
+    """Store user command for context."""
+    _commands.append(cmd)
+    if len(_commands) > 20:
+        del _commands[0]
+
+
+def set_current_strategy(strategy: str) -> None:
+    global CURRENT_STRATEGY
+    CURRENT_STRATEGY = strategy
+
+
+def _strategy_summary() -> str:
+    global CURRENT_STRATEGY
+    data = load_stats()
+    stats = data.get(CURRENT_STRATEGY, {})
+
+    # pick best win-rate strategy if no data for current
+    if not stats and isinstance(data, dict):
+        best, rate = CURRENT_STRATEGY, -1.0
+        for name, info in data.items():
+            wins = info.get("wins", 0)
+            losses = info.get("losses", 0)
+            total = wins + losses
+            win_rate = (wins / total) if total else 0.0
+            if win_rate > rate:
+                best, rate, stats = name, win_rate, info
+        CURRENT_STRATEGY = best
+
+    pnl = stats.get("pnl", 0.0)
+    wins = stats.get("wins", 0)
+    losses = stats.get("losses", 0)
+    return f"Current: {CURRENT_STRATEGY} | Wins: {wins} | Losses: {losses} | PnL: ${pnl:.2f}"
+
+
+def _build_context() -> Dict[str, object]:
+    memories = top_memories(3)
+    mark_used(memories)
+    return {
+        "top_memories": memories,
+        "strategy": _strategy_summary(),
+        "recent_commands": _commands[-3:],
+    }
+
+
+def _context_block(context: Dict[str, object]) -> str:
+    mem_lines = []
+    for mem in context.get("top_memories", []):
+        ts = mem.get("timestamp")
+        if ts:
+            ts = time.strftime("%Y-%m-%d", time.localtime(float(ts)))
+        else:
+            ts = "unknown"
+        event = mem.get("event", "")
+        mem_lines.append(f"- {ts}: {event}")
+    mem_text = "\n".join(mem_lines)
+    strat_summary = context.get("strategy", "")
+    block = f"[MEMORY CONTEXT]\n{mem_text}\n\n[STRATEGY SUMMARY]\n{strat_summary}"
+    return block
+
+
+def _clean_response(text: str) -> str:
+    """Remove repeating prefixes like 'Jarvis:' or 'AI:' from model output."""
+    lines = []
+    for line in text.splitlines():
+        line = re.sub(r'^(?:Jarvis|AI|Assistant)\s*:\s*', '', line, flags=re.I)
+        if line.strip():
+            lines.append(line.strip())
+    return ' '.join(lines).strip()
+
+
+def ask_ai(prompt: str) -> str:
+    """Send a prompt to the AI model with contextual information."""
+    global _LAST_CONTEXT
+    context = _build_context()
+    _LAST_CONTEXT = context
+    block = _context_block(context)
+    full_prompt = f"{block}\n\n{prompt}\nJarvis:"
+    payload = {
+        "model": OLLAMA_MODEL,
+        "prompt": full_prompt,
+        "stream": False,
+    }
+    response_text = "Error: AI engine unavailable."
+    try:
+        resp = requests.post(ENDPOINT, json=payload, timeout=30)
+        if resp.status_code == 200:
+            data = resp.json()
+            if isinstance(data, dict):
+                response_text = data.get("response", "").strip()
+    except Exception:
+        pass
+    if "Error" in response_text:
+        try:
+            result = subprocess.run(
+                ["ollama", "run", OLLAMA_MODEL],
+                input=full_prompt,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.stdout:
+                response_text = result.stdout.strip()
+        except Exception:
+            pass
+
+    response_text = _clean_response(response_text)
+
+    _log_interaction(prompt, response_text, context)
+    return response_text
+
+
+def last_context() -> Dict[str, object] | None:
+    return _LAST_CONTEXT
+
+
+def _log_interaction(user_prompt: str, ai_response: str, context: Dict[str, object]) -> None:
+    entry = {
+        "timestamp": time.time(),
+        "prompt": user_prompt,
+        "response": ai_response,
+        "strategy": context.get("strategy"),
+        "memories": context.get("top_memories"),
+    }
+    day = date.today().isoformat()
+    path = f"logs/self_audit/{day}.json"
+    os.makedirs("logs/self_audit", exist_ok=True)
+    data: List[Dict[str, object]] = []
+    if os.path.exists(path):
+        try:
+            with open(path) as f:
+                data = json.load(f)
+        except Exception:
+            data = []
+    data.append(entry)
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def interpret_command(prompt: str) -> Dict[str, str]:
+    text = prompt.lower()
+    if "switch strategy" in text:
+        for s in STRATEGIES:
+            if s.lower() in text:
+                return {"action": "switch_strategy", "strategy": s}
+        return {"action": "switch_strategy"}
+    if "pause trading" in text:
+        return {"action": "pause_trading"}
+    if "show history" in text:
+        return {"action": "show_history"}
+    return {"action": "none"}
+
+
+def apply_feedback(memories: List[Dict[str, Any]], positive: bool) -> None:
+    feedback_memories(memories, positive)
+
+# === FILE: gui/handlers/strategy_handler.py ===
+import json
+import os
+from typing import Dict, List, Any
+
+DATA_PATH = "data/strategy_stats.json"
+STRATEGIES = ["RSI", "EMA", "MACD"]
+AUTO_MODE = True
+
+
+def load_stats() -> Dict[str, Any]:
+    if os.path.exists(DATA_PATH):
+        try:
+            with open(DATA_PATH, "r") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def pnl_history(strategy: str) -> List[float]:
+    stats = load_stats().get(strategy, {})
+    return stats.get("history", [])
+
+
+def toggle_auto() -> None:
+    global AUTO_MODE
+    AUTO_MODE = not AUTO_MODE
+
+
+def switch_strategy(current: str) -> str:
+    idx = STRATEGIES.index(current) if current in STRATEGIES else 0
+    idx = (idx + 1) % len(STRATEGIES)
+    return STRATEGIES[idx]
