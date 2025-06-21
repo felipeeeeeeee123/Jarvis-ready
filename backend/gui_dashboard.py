@@ -19,6 +19,18 @@ MEMORY_PATH = Path("memory.json")
 UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 
+# keywords that trigger the engineering expert
+ENGINEERING_KEYWORDS = (
+    "solve",
+    "calculate",
+    "blueprint",
+    "physics",
+    "mechanics",
+    "force",
+    "equation",
+    "engineer",
+)
+
 st.set_page_config(page_title="JARVIS Chatbot", page_icon="🤖", layout="wide")
 
 st.markdown(
@@ -82,7 +94,7 @@ if prompt := st.chat_input("Type your message and press Enter"):
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             lower = prompt.lower()
-            if any(k in lower for k in ("engineering", "solve", "equation")):
+            if any(k in lower for k in ENGINEERING_KEYWORDS):
                 response = expert.answer(prompt)
             else:
                 response = answer_question(prompt)

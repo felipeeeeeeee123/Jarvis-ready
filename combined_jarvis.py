@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import time
 from difflib import SequenceMatcher
+from datetime import datetime
 from pathlib import Path
 
 import requests
@@ -76,6 +77,23 @@ def ollama_answer(prompt: str, model: str = "mistral") -> str:
 
 
 def answer_question(question: str) -> str:
+    """Return an answer using web search and Ollama with fallbacks."""
+    lower = question.lower()
+
+    # handle direct date requests instead of the old fixed answer
+    date_triggers = (
+        "current date",
+        "today's date",
+        "date today",
+        "what is the date",
+        "what's the date",
+        "what day is it",
+    )
+    if any(t in lower for t in date_triggers):
+        response = datetime.now().strftime("%B %d, %Y")
+        add_memory(question, response)
+        return response
+
     cached = search_memory(question)
     if cached:
         return cached
@@ -86,6 +104,15 @@ def answer_question(question: str) -> str:
         response = ollama_answer(prompt)
     else:
         response = ollama_answer(question)
+
+    if (
+        not response
+        or response.startswith("[Ollama error")
+        or (
+            context.startswith("[Web search error") or "No results" in context
+        )
+    ):
+        response = "I'm not sure, but I can look into that further if you'd like."
 
     add_memory(question, response)
     return response
