@@ -1,13 +1,11 @@
 from __future__ import annotations
 
-import json
-from pathlib import Path
-import streamlit as st
 import sys
-import os
+from pathlib import Path
 
-# Ensure parent directory is in sys.path to import combined_jarvis.py
-sys.path.insert(0, os.path.abspath(Path(__file__).parent.parent))
+import streamlit as st
+
+sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from combined_jarvis import (
     answer_question,
@@ -26,65 +24,65 @@ st.set_page_config(page_title="JARVIS Chatbot", page_icon="🤖", layout="wide")
 st.markdown(
     """
     <style>
-        #MainMenu {visibility: hidden;}
-        footer {visibility: hidden;}
-        .stChatMessage {max-width: 700px; margin-left: auto; margin-right: auto;}
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    .stChatMessage {max-width: 700px; margin-left: auto; margin-right: auto;}
+    .block-container {padding-top: 2rem;}
     </style>
     """,
     unsafe_allow_html=True,
 )
 
-# --- Sidebar ---
+# Load chat history
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+    for rec in load_memory():
+        st.session_state.messages.append({"role": "user", "content": rec.get("prompt", "")})
+        st.session_state.messages.append({"role": "assistant", "content": rec.get("response", "")})
+
+# Sidebar actions
 with st.sidebar:
     st.markdown("## 🤖 JARVIS")
     if st.button("New Chat", use_container_width=True):
         save_memory([])
-        st.session_state.pop("messages", None)
-        st.experimental_rerun()
+        st.session_state.clear()
+        st.rerun()
     if st.button("Exit", use_container_width=True):
         st.write("Chat closed. You can now close this tab.")
         st.stop()
     uploaded = st.file_uploader("Upload worksheet (.pdf or .txt)", type=["pdf", "txt"])
-    if uploaded:
+    if uploaded is not None:
         file_path = UPLOAD_DIR / uploaded.name
         file_path.write_bytes(uploaded.getvalue())
         expert = st.session_state.get("expert", engineering_expert)
         st.session_state.expert = expert
-        if file_path.suffix.lower() == ".pdf":
-            with st.spinner("Solving worksheet..."):
-                results = expert.solve_pdf_worksheet(str(file_path))
-            for q, sol in results.items():
-                st.markdown(f"**{q}**")
-                st.markdown(sol)
-        else:
-            content = file_path.read_text()
-            with st.spinner("Solving..."):
-                answer = expert.answer(content)
-            st.markdown(answer)
+        with st.spinner("Processing worksheet..."):
+            if file_path.suffix.lower() == ".pdf":
+                result = expert.process_pdf(str(file_path))
+            else:
+                result = expert.process_txt(str(file_path))
+        st.session_state.messages.append({"role": "user", "content": f"[Uploaded {uploaded.name}]"})
+        st.session_state.messages.append({"role": "assistant", "content": result})
+        add_memory(f"worksheet:{uploaded.name}", result)
+        st.rerun()
 
-# --- Load previous messages ---
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-    for record in load_memory():
-        st.session_state.messages.append({"role": "user", "content": record.get("prompt", "")})
-        st.session_state.messages.append({"role": "assistant", "content": record.get("response", "")})
-
-# --- Display chat history ---
-for msg in st.session_state.messages:
+# Display chat history
+for msg in st.session_state.get("messages", []):
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
 expert = st.session_state.get("expert", engineering_expert)
 st.session_state.expert = expert
 
-# --- Prompt input ---
+# Chat input
 if prompt := st.chat_input("Type your message and press Enter"):
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.markdown(prompt)
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
-            if engineering_expert.is_engineering_question(prompt):
+            lower = prompt.lower()
+            if any(k in lower for k in ("engineering", "solve", "equation")):
                 response = expert.answer(prompt)
             else:
                 response = answer_question(prompt)
