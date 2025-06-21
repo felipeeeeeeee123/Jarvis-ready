@@ -4,8 +4,11 @@ import json
 from pathlib import Path
 import streamlit as st
 import sys
+import os
 
-sys.path.append("..")
+# Ensure parent directory is in sys.path to import combined_jarvis.py
+sys.path.insert(0, os.path.abspath(Path(__file__).parent.parent))
+
 from combined_jarvis import (
     answer_question,
     add_memory,
