@@ -3,9 +3,16 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import streamlit as st
+import sys
 
-from combined_jarvis import answer_question, add_memory, load_memory, save_memory
-from features.engineering_expert import EngineeringExpert
+sys.path.append("..")
+from combined_jarvis import (
+    answer_question,
+    add_memory,
+    load_memory,
+    save_memory,
+    EngineeringExpert,
+)
 
 MEMORY_PATH = Path("memory.json")
 UPLOAD_DIR = Path("uploads")
