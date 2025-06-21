@@ -1,1 +1,52 @@
-[]
+[
+  {
+    "prompt": "hwllo",
+    "response": "Hello! How can I assist you today?",
+    "timestamp": 1750479465.447555
+  },
+  {
+    "prompt": "hwllo",
+    "response": "Hello! How can I assist you today?",
+    "timestamp": 1750479465.4598103
+  },
+  {
+    "prompt": "whats he date",
+    "response": "I cannot see any specific date in your message. If you're referring to a certain event or historical fact, I may be able to help if you provide more context. For example, \"What is the date of the Declaration of Independence?\" would have the correct answer: July 4, 1776.",
+    "timestamp": 1750479477.2036154
+  },
+  {
+    "prompt": "whats he date",
+    "response": "I cannot see any specific date in your message. If you're referring to a certain event or historical fact, I may be able to help if you provide more context. For example, \"What is the date of the Declaration of Independence?\" would have the correct answer: July 4, 1776.",
+    "timestamp": 1750479477.2138028
+  },
+  {
+    "prompt": "whats the date today",
+    "response": "The current date is March 20, 2023.",
+    "timestamp": 1750479492.6669538
+  },
+  {
+    "prompt": "whats the date today",
+    "response": "The current date is March 20, 2023.",
+    "timestamp": 1750479492.6806076
+  },
+  {
+    "prompt": "no its june 6th 20205",
+    "response": "It seems like there might be a mistake in the date you provided. June 6th, 2020 is in the past, while 20205 is not a valid year. If you meant June 6th, 2025, please let me know! If you have any questions or need assistance with something else, feel free to ask.",
+    "timestamp": 1750479508.2234604
+  },
+  {
+    "prompt": "no its june 6th 20205",
+    "response": "It seems like there might be a mistake in the date you provided. June 6th, 2020 is in the past, while 20205 is not a valid year. If you meant June 6th, 2025, please let me know! If you have any questions or need assistance with something else, feel free to ask.",
+    "timestamp": 1750479508.2353003
+  },
+  {
+    "prompt": "i meant june 20th 2025",
+    "response": "The date you provided, June 20th, 2025, is a future date. If you have any specific questions or topics related to that date, I'd be happy to help you explore them! For instance, we could discuss potential events, holidays, or astronomical phenomena occurring on that day. Or perhaps you want to know what the weather might be like in a certain location on June 20th, 2025. Just let me know!",
+    "timestamp": 1750479526.880387
+  },
+  {
+    "prompt": "i meant june 20th 2025",
+    "response": "The date you provided, June 20th, 2025, is a future date. If you have any specific questions or topics related to that date, I'd be happy to help you explore them! For instance, we could discuss potential events, holidays, or astronomical phenomena occurring on that day. Or perhaps you want to know what the weather might be like in a certain location on June 20th, 2025. Just let me know!",
+    "timestamp": 1750479526.8922772
+  }
+]
