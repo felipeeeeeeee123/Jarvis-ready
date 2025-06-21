@@ -122,6 +122,29 @@ class EngineeringExpert:
         self.formula_index = MemoryManager(path="data/formula_index.json")
         self.sim_index = MemoryManager(path="data/simulation_index.json")
 
+    def solve(self, prompt: str) -> str:
+        """Solve basic engineering formulas symbolically."""
+        from sympy import symbols, simplify, latex
+        import re
+
+        if "moment of inertia" in prompt.lower():
+            m, L = symbols("m L")
+            inertia = simplify((1 / 12) * m * L ** 2)
+            return f"The moment of inertia formula is:\n\nI = {latex(inertia)}"
+
+        return "I'm working on solving that. Try asking for a specific engineering formula."
+
+    def generate_beam_model(
+        self, length_m: float, width_m: float = 0.1, height_m: float = 0.1
+    ) -> str:
+        """Create a basic 3D beam model and export as GLB using trimesh."""
+        import trimesh
+
+        model = trimesh.creation.box(extents=[length_m, width_m, height_m])
+        out_path = os.path.join(MODEL_DIR, "beam_model.glb")
+        model.export(out_path)
+        return out_path
+
     def _index_formula(self, formula: str, tags: List[str], steps: str) -> None:
         entry = {
             "formula": formula,
