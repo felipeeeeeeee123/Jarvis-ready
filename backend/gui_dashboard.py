@@ -98,6 +98,18 @@ if prompt := st.chat_input("Type your message and press Enter"):
                 response = expert.answer(prompt)
             else:
                 response = answer_question(prompt)
-        st.markdown(response)
+
+        if response.strip().endswith(".glb"):
+            model_path = response.strip().split(":")[-1].strip()
+            st.markdown("### 3D Model Viewer:")
+            st.components.v1.html(
+                f'''
+        <model-viewer src="/{model_path}" alt="3D model" auto-rotate camera-controls style="width:100%; height:500px;"></model-viewer>
+        <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+        ''',
+                height=500,
+            )
+        else:
+            st.markdown(response)
     st.session_state.messages.append({"role": "assistant", "content": response})
     add_memory(prompt, response)
