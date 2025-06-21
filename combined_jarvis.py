@@ -80,6 +80,35 @@ def answer_question(question: str) -> str:
     """Return an answer using web search and Ollama with fallbacks."""
     lower = question.lower()
 
+    # route engineering or 3d modeling prompts to the expert
+    if any(
+        kw in lower
+        for kw in [
+            "moment of inertia",
+            "beam",
+            "load",
+            "stress",
+            "strain",
+            "symbolic",
+            "blueprint",
+            "calculate",
+            "render 3d",
+        ]
+    ):
+        if "render" in lower and "3d" in lower:
+            try:
+                import re
+
+                length = float(re.search(r"(\d+\.?\d*)m", question).group(1))
+                model_path = engineering_expert.generate_beam_model(length)
+                return f"3D beam model generated: {model_path}"
+            except Exception:
+                return (
+                    "Could not parse beam length. Please say something like 'render 3D model of beam 10m long'."
+                )
+        else:
+            return engineering_expert.solve(question)
+
     # handle direct date requests instead of the old fixed answer
     date_triggers = (
         "current date",
