@@ -10,6 +10,8 @@ from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
+import re
+from difflib import SequenceMatcher
 
 
 MEMORY_PATH = Path("memory.json")
@@ -76,8 +78,73 @@ def ollama_answer(prompt: str, model: str = "mistral") -> str:
         return f"[Ollama error: {exc}]"
 
 
+COMMON_MISSPELLINGS = {
+    "lenght": "length",
+    "metres": "meters",
+    "metre": "meter",
+    "meteres": "meters",
+}
+
+
+def normalize_prompt(text: str) -> str:
+    """Return text with basic typo fixes and fuzzy corrections."""
+    for wrong, right in COMMON_MISSPELLINGS.items():
+        text = text.replace(wrong, right)
+    words = text.split()
+    vocab = [
+        "beam",
+        "model",
+        "render",
+        "length",
+        "meters",
+        "calculate",
+        "torque",
+        "force",
+        "moment",
+        "inertia",
+    ]
+    fixed: list[str] = []
+    for word in words:
+        best = word
+        best_score = 0.0
+        for v in vocab:
+            score = SequenceMatcher(None, word.lower(), v).ratio()
+            if score > best_score and score > 0.8:
+                best = v
+                best_score = score
+        fixed.append(best)
+    return " ".join(fixed)
+
+
+def extract_beam_length(prompt: str) -> float | None:
+    """Return beam length in meters if found using fuzzy patterns."""
+    text = normalize_prompt(prompt.lower())
+    match = re.search(r"beam.*?(\d+(?:\.\d+)?)\s*(?:m|meters?)", text)
+    if not match:
+        match = re.search(r"(\d+(?:\.\d+)?)\s*(?:m|meters?).*?beam", text)
+    if match:
+        try:
+            return float(match.group(1))
+        except Exception:
+            pass
+    # look for number adjacent to a fuzzy 'beam'
+    parts = text.split()
+    for i, word in enumerate(parts):
+        if SequenceMatcher(None, word, "beam").ratio() > 0.8:
+            for idx in (i - 1, i + 1):
+                if 0 <= idx < len(parts):
+                    m = re.match(r"(\d+(?:\.\d+)?)(?:m)?", parts[idx])
+                    if m:
+                        try:
+                            return float(m.group(1))
+                        except Exception:
+                            pass
+    return None
+
+
 def answer_question(question: str) -> str:
     """Return an answer using web search and Ollama with fallbacks."""
+    question = normalize_prompt(question)
     lower = question.lower()
 
     # route engineering or 3d modeling prompts to the expert
@@ -93,13 +160,16 @@ def answer_question(question: str) -> str:
             "blueprint",
             "calculate",
             "render 3d",
+            "torque",
+            "force",
+            "moment",
         ]
     ):
         if "render" in lower and "3d" in lower:
             try:
-                import re
-
-                length = float(re.search(r"(\d+\.?\d*)m", question).group(1))
+                length = extract_beam_length(question)
+                if length is None:
+                    raise ValueError("length not found")
                 model_path = engineering_expert.generate_beam_model(length)
                 return f"3D beam model generated: {model_path}"
             except Exception:
