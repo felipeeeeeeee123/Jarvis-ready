@@ -14,7 +14,7 @@ from combined_jarvis import (
     add_memory,
     load_memory,
     save_memory,
-    EngineeringExpert,
+    engineering_expert,
 )
 
 MEMORY_PATH = Path("memory.json")
@@ -48,7 +48,7 @@ with st.sidebar:
     if uploaded:
         file_path = UPLOAD_DIR / uploaded.name
         file_path.write_bytes(uploaded.getvalue())
-        expert = st.session_state.get("expert", EngineeringExpert())
+        expert = st.session_state.get("expert", engineering_expert)
         st.session_state.expert = expert
         if file_path.suffix.lower() == ".pdf":
             with st.spinner("Solving worksheet..."):
@@ -74,7 +74,7 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.markdown(msg["content"])
 
-expert = st.session_state.get("expert", EngineeringExpert())
+expert = st.session_state.get("expert", engineering_expert)
 st.session_state.expert = expert
 
 # --- Prompt input ---
@@ -84,7 +84,7 @@ if prompt := st.chat_input("Type your message and press Enter"):
         st.markdown(prompt)
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
-            if EngineeringExpert.is_engineering_question(prompt):
+            if engineering_expert.is_engineering_question(prompt):
                 response = expert.answer(prompt)
             else:
                 response = answer_question(prompt)

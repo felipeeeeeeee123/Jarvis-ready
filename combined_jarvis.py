@@ -91,6 +91,13 @@ def answer_question(question: str) -> str:
     return response
 
 
+# Import the engineering expert and expose a default instance for other modules
+from backend.features.engineering_expert import EngineeringExpert
+
+# Exposed instance used by GUI and other components
+engineering_expert = EngineeringExpert()
+
+
 def main() -> None:
     print("\U0001F9E0 JARVIS AI System Activated")
     while True:
