@@ -6,6 +6,7 @@ from typing import Callable, List, Tuple
 import re
 from uuid import uuid4
 from difflib import SequenceMatcher
+from pathlib import Path
 import fitz
 import sympy as sp
 import matplotlib
@@ -446,6 +447,34 @@ class EngineeringExpert:
                 results[current] = self._format_worksheet_answer(current, sol)
                 current = ""
         return results
+
+    def process_pdf(self, path: str) -> str:
+        """Process an engineering worksheet PDF and return formatted results."""
+        results = self.solve_pdf_worksheet(path)
+        return "\n\n".join(results.values())
+
+    def process_txt(self, path: str) -> str:
+        """Process a text worksheet with numbered problems."""
+        text = Path(path).read_text()
+        pattern = re.compile(r"^\d+\.\s+")
+        questions: list[str] = []
+        current = ""
+        for line in text.splitlines():
+            if pattern.match(line.strip()):
+                if current.strip():
+                    questions.append(pattern.sub("", current.strip()))
+                current = pattern.sub("", line.strip())
+            else:
+                current += " " + line.strip()
+        if current.strip():
+            questions.append(pattern.sub("", current.strip()))
+        if not questions:
+            questions = [text.strip()]
+        answers = []
+        for q in questions:
+            sol = self.answer(q)
+            answers.append(self._format_worksheet_answer(q, sol))
+        return "\n\n".join(answers)
 
     def _textbook_context(self, discipline: str, query: str) -> str:
         """Retrieve relevant textbook snippets for the query."""
