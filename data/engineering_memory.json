@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "question": "Can you calculate the moment of inertia for a beam of length 10m and mass 15kg?\n",
+    "answer": " To calculate the moment of inertia (I) for a uniform rectangular beam, we can use the following formula:\n\nI = \u222b(y^2 dA)\n\nIn this case, since the beam is uniform, we can treat it as having a constant density across its cross-sectional area. The formula simplifies to:\n\nI = (1/12) * m * L^2\n\nwhere m is the mass of the beam and L is its length. However, we don't have the width or cross-sectional area of the beam in this problem, so it's impossible to calculate the exact moment of inertia with just the provided information. We would need to know either the width (or cross-sectional area) of the beam in order to proceed with the calculation.",
+    "source": "Ollama",
+    "tokens": 118,
+    "confidence": 1.3461,
+    "timestamp": 1750480026.497814
+  }
+]
