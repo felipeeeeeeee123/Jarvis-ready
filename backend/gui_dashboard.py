@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+import os
+import base64
 
 import streamlit as st
 
@@ -14,6 +16,18 @@ from combined_jarvis import (
     save_memory,
     engineering_expert,
 )
+
+
+def _embed_glb(path: str) -> str:
+    """Return HTML snippet to display a GLB model using model-viewer."""
+    if not os.path.exists(path):
+        return "<p>Model not found.</p>"
+    with open(path, "rb") as f:
+        b64 = base64.b64encode(f.read()).decode()
+    return f"""
+    <script type='module' src='https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js'></script>
+    <model-viewer src='data:model/gltf-binary;base64,{b64}' auto-rotate camera-controls style='width:100%; height:500px;'></model-viewer>
+    """
 
 MEMORY_PATH = Path("memory.json")
 UPLOAD_DIR = Path("uploads")
@@ -102,13 +116,8 @@ if prompt := st.chat_input("Type your message and press Enter"):
         if response.strip().endswith(".glb"):
             model_path = response.strip().split(":")[-1].strip()
             st.markdown("### 3D Model Viewer:")
-            st.components.v1.html(
-                f'''
-        <model-viewer src="/{model_path}" alt="3D model" auto-rotate camera-controls style="width:100%; height:500px;"></model-viewer>
-        <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
-        ''',
-                height=500,
-            )
+            html = _embed_glb(model_path)
+            st.components.v1.html(html, height=520)
         else:
             st.markdown(response)
     st.session_state.messages.append({"role": "assistant", "content": response})
