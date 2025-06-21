@@ -1,5 +1,6 @@
 import ast
 import os
+import sys
 
 EXCLUDE_DIRS = {"venv", ".venv", "__pycache__", ".git"}
 INTERNAL_PREFIXES = {"backend", "gui", "features", "utils"}
@@ -11,6 +12,7 @@ COMBINED_FILE = "combined_jarvis.py"
 future_imports: set[str] = set()
 regular_imports: set[str] = set()
 file_contents: list[str] = []
+dependency_roots: set[str] = set()
 
 
 def is_internal(module: str | None) -> bool:
@@ -70,6 +72,11 @@ for root, dirs, files in os.walk(PROJECT_ROOT):
                     future_imports.add(segment)
                 elif not internal and not skip:
                     regular_imports.add(segment)
+                    if isinstance(node, ast.Import):
+                        for alias in node.names:
+                            dependency_roots.add(alias.name.split(".")[0])
+                    elif node.module:
+                        dependency_roots.add(node.module.split(".")[0])
 
                 if is_future or internal:
                     start = node.lineno - 1
@@ -103,5 +110,28 @@ with open(COMBINED_FILE, "w", encoding="utf-8") as out:
     out.write("\n")
     for content in file_contents:
         out.write(content)
+
+existing_requirements: set[str] = set()
+if os.path.exists("requirements.txt"):
+    with open("requirements.txt", "r", encoding="utf-8") as req:
+        for line in req:
+            pkg = line.strip().split("==")[0].lower()
+            if pkg:
+                existing_requirements.add(pkg)
+
+std_modules = set(sys.builtin_module_names)
+if hasattr(sys, "stdlib_module_names"):
+    std_modules.update(sys.stdlib_module_names)
+
+missing = sorted(
+    root
+    for root in dependency_roots
+    if root not in std_modules and root.lower() not in existing_requirements
+)
+if missing:
+    with open("requirements.txt", "a", encoding="utf-8") as req:
+        for pkg in missing:
+            req.write(f"{pkg}\n")
+    print(f"📝 Added missing dependencies: {', '.join(missing)}")
 
 print(f"✅ Successfully regenerated {COMBINED_FILE}")
