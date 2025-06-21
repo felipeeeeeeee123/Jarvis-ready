@@ -2730,3 +2730,17 @@ def export_memory(path: str = "memory_export.json") -> str:
     with open(path, "w") as f:
         json.dump(data, f, indent=2)
     return path
+
+
+if __name__ == "__main__":
+    qa_memory = AIBrain()
+    print("\U0001F9E0 JARVIS AI System Activated")
+    while True:
+        try:
+            user_input = input("You: ").strip()
+            if user_input.lower() in {"exit", "quit"}:
+                break
+            response = qa_memory.ask(user_input)
+            print(f"\U0001F9E0 JARVIS: {response}")
+        except Exception as exc:
+            print(f"\u26A0\uFE0F Error: {exc}")
