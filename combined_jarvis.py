@@ -1,5 +1,31 @@
 from __future__ import annotations
 
+# Smart dependency installer must run before third party imports
+import importlib.util
+import subprocess
+import sys
+
+
+def install_if_missing(package_name: str, module_name: str | None = None) -> None:
+    """Install *package_name* via pip if *module_name* cannot be imported."""
+    if module_name is None:
+        module_name = package_name
+    if importlib.util.find_spec(module_name) is None:
+        print(f"\U0001F4E6 Installing missing package: {package_name}")
+        subprocess.check_call([sys.executable, "-m", "pip", "install", package_name])
+
+
+install_if_missing("PyMuPDF", "fitz")
+install_if_missing("beautifulsoup4", "bs4")
+install_if_missing("python-dotenv")
+install_if_missing("flask")
+install_if_missing("streamlit")
+install_if_missing("alpaca-trade-api")
+install_if_missing("sympy")
+install_if_missing("matplotlib")
+install_if_missing("openai")
+install_if_missing("pandas")
+
 # Combined JARVIS Python File
 from bs4 import BeautifulSoup
 from datetime import date
@@ -633,34 +659,6 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-# === Required third party packages ===
-REQUIRED_PACKAGES = [
-    "requests",
-    "pandas",
-    "matplotlib",
-    "plotly",
-    "PyMuPDF",
-    "beautifulsoup4",
-    "ollama",
-    "python-dotenv",
-]
-
-def ensure_packages_installed() -> None:
-    """Install any missing dependencies on the fly."""
-    for pkg in REQUIRED_PACKAGES:
-        module_name = pkg.replace("-", "_")
-        try:
-            __import__(module_name)
-        except ImportError:
-            print(f"\U0001F4E6 Installing missing package: {pkg}")
-            subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
-
-ensure_packages_installed()
-
-try:
-    import requests  # noqa: F401
-except ImportError as exc:
-    raise ImportError("❌ Missing 'requests'. Activate your venv and run: pip install requests") from exc
 
 
 CONFIG_PATH = "config.json"
