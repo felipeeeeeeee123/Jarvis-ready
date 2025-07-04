@@ -6,5 +6,9 @@
     "\"Calculate the moment of inertia for a beam\"": {
         "answer": " To calculate the moment of inertia (I) of a uniform rectangular beam, we can use the following formula:\n\nI = \u222b(y^2 dA)\n\nWhere y is the perpendicular distance from the axis of rotation to the element of area dA, and the integral is taken over the entire cross-sectional area of the beam.\n\nFor a rectangular beam with width b and height h, the moment of inertia can be found using:\n\nI = 1/12 * (b*h^3)\n\nThis formula assumes that the axis of rotation is perpendicular to the plane of the beam and goes through its center. If the axis of rotation is at a different location, or if the beam has a non-rectangular cross section, more complex calculations may be required.",
         "score": 1.8462
+    },
+    "solve F=ma for F when m=10 and a=2": {
+        "answer": "Solve f = ma for f\n\\boxed{[ma]}",
+        "score": 0.4158
     }
 }

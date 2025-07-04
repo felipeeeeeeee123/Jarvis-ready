@@ -83,5 +83,15 @@
     "prompt": " 'render 3D model of beam 10m long'.",
     "response": "Could not parse beam length. Please say something like 'render 3D model of beam 10m long'.",
     "timestamp": 1750480611.246998
+  },
+  {
+    "prompt": "render 3d beam 12 meters",
+    "response": "Could not parse beam length. Please say something like 'render 3D model of beam 10m long'.",
+    "timestamp": 1750481251.5828197
+  },
+  {
+    "prompt": "solve F=ma for F when m=10 and a=2",
+    "response": "Solve f = ma for f\n\\boxed{[ma]}",
+    "timestamp": 1750481266.2208626
   }
 ]

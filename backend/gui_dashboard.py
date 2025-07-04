@@ -89,7 +89,7 @@ with st.sidebar:
                 result = expert.process_txt(str(file_path))
         st.session_state.messages.append({"role": "user", "content": f"[Uploaded {uploaded.name}]"})
         st.session_state.messages.append({"role": "assistant", "content": result})
-        add_memory(f"worksheet:{uploaded.name}", result)
+         add_memory(f"worksheet:{uploaded.name}", result)
         st.rerun()
 
 # Display chat history

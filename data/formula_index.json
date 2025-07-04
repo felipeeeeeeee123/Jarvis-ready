@@ -1,1 +1,12 @@
-{}
+{
+    "formulas": [
+        {
+            "formula": "f=ma",
+            "tags": [
+                "f"
+            ],
+            "steps": "Solve f = ma for f\n\\boxed{[ma]}",
+            "timestamp": 1750481266.2160616
+        }
+    ]
+}
