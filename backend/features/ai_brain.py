@@ -3,11 +3,12 @@ import os
 import sys
 
 sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-from utils.memory import MemoryManager
-from .qa_memory import QAMemory
+from utils.memory_db import DatabaseMemoryManager
+from database.services import qa_service
 from .evaluator import Evaluator
 from .web_search import web_search
 from .engineering_expert import EngineeringExpert
+from config.settings import settings
 
 openai = None
 
@@ -15,16 +16,18 @@ openai = None
 class AIBrain:
     def __init__(self, model="gpt-3.5-turbo"):
         self.model = model
-        self.memory = MemoryManager()
-        self.qa_memory = QAMemory()
+        self.memory = DatabaseMemoryManager()
+        self.qa_service = qa_service
         self.evaluator = Evaluator()
-        self.api_key = os.getenv("OPENAI_API_KEY")
+        self.api_key = settings.OPENAI_API_KEY
         if self.api_key:
-            import openai as openai_lib
-
-            openai_lib.api_key = self.api_key
-            global openai
-            openai = openai_lib
+            try:
+                import openai as openai_lib
+                openai_lib.api_key = self.api_key
+                global openai
+                openai = openai_lib
+            except ImportError:
+                openai = None
         self.client = None
 
     def solve_pdf(self, path: str) -> dict:
@@ -46,12 +49,10 @@ class AIBrain:
         if EngineeringExpert.is_engineering_question(prompt):
             expert = EngineeringExpert()
             answer = expert.answer(prompt)
-            self.memory.memory["last_answer"] = answer
-            self.memory.save()
+            self.memory.set("last_answer", answer)
             score = self.evaluator.score(prompt, answer, "Ollama")
-            self.qa_memory.add(prompt, answer, "Ollama", score)
+            self.qa_service.add_entry(prompt, answer, "Ollama", score)
             self.evaluator.update_leaderboard(prompt, score)
-            self.qa_memory.prune()
             return answer
         try:
             if openai:
@@ -64,9 +65,11 @@ class AIBrain:
                     else response.choices[0].text.strip()
                 )
             else:
+                ollama_url = f"http://{settings.OLLAMA_HOST}:{settings.OLLAMA_PORT}/api/generate"
                 response = requests.post(
-                    "http://localhost:11434/api/generate",
-                    json={"model": "mistral", "prompt": prompt, "stream": False},
+                    ollama_url,
+                    json={"model": settings.OLLAMA_MODEL, "prompt": prompt, "stream": False},
+                    timeout=30
                 )
                 answer = response.json().get(
                     "response", "[No response from local model]"
@@ -74,21 +77,23 @@ class AIBrain:
         except Exception as e:
             answer = f"[Error generating response: {e}]"
 
-        self.memory.memory["last_answer"] = answer
-        self.memory.save()
+        self.memory.set("last_answer", answer)
         score = self.evaluator.score(prompt, answer, "Ollama")
+        
         # auto-correct low confidence answers using web search context
-        if score < 0.5:
+        if score < 0.5 and settings.WEB_SEARCH_ENABLED:
             try:
                 context = web_search(prompt)
                 improved_prompt = f"{prompt}\n\nContext:\n{context}"
+                ollama_url = f"http://{settings.OLLAMA_HOST}:{settings.OLLAMA_PORT}/api/generate"
                 resp = requests.post(
-                    "http://localhost:11434/api/generate",
+                    ollama_url,
                     json={
-                        "model": "mistral",
+                        "model": settings.OLLAMA_MODEL,
                         "prompt": improved_prompt,
                         "stream": False,
                     },
+                    timeout=30
                 )
                 new_answer = resp.json().get("response", answer)
                 new_score = self.evaluator.score(prompt, new_answer, "Ollama")
@@ -98,7 +103,6 @@ class AIBrain:
             except Exception:
                 pass
 
-        self.qa_memory.add(prompt, answer, "Ollama", score)
+        self.qa_service.add_entry(prompt, answer, "Ollama", score)
         self.evaluator.update_leaderboard(prompt, score)
-        self.qa_memory.prune()
         return answer

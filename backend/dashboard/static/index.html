@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JARVIS v3.0 - Autonomous AI Dashboard</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.3.0/chart.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #0d1421;
+            --secondary-color: #1a2332;
+            --accent-color: #00d9ff;
+            --success-color: #00ff88;
+            --warning-color: #ffaa00;
+            --danger-color: #ff4757;
+            --text-primary: #ffffff;
+            --text-secondary: #a8b2d1;
+            --border-color: #2d3748;
+        }
+
+        body {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: var(--text-primary);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            min-height: 100vh;
+        }
+
+        .navbar {
+            background: rgba(13, 20, 33, 0.95) !important;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .card {
+            background: rgba(26, 35, 50, 0.8);
+            border: 1px solid var(--border-color);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+        }
+
+        .card-header {
+            background: rgba(13, 20, 33, 0.5);
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+
+        .status-online { background-color: var(--success-color); }
+        .status-warning { background-color: var(--warning-color); }
+        .status-offline { background-color: var(--danger-color); }
+
+        .metric-card {
+            transition: transform 0.2s ease;
+        }
+
+        .metric-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--accent-color);
+        }
+
+        .metric-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, var(--accent-color), #0099cc);
+            border: none;
+        }
+
+        .btn-success {
+            background: linear-gradient(45deg, var(--success-color), #00cc66);
+            border: none;
+        }
+
+        .btn-warning {
+            background: linear-gradient(45deg, var(--warning-color), #ff8800);
+            border: none;
+        }
+
+        .btn-danger {
+            background: linear-gradient(45deg, var(--danger-color), #cc3644);
+            border: none;
+        }
+
+        .table-dark {
+            background: rgba(26, 35, 50, 0.6);
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .pulse {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .sidebar {
+            background: rgba(13, 20, 33, 0.9);
+            min-height: calc(100vh - 56px);
+            border-right: 1px solid var(--border-color);
+        }
+
+        .nav-link {
+            color: var(--text-secondary);
+            transition: all 0.3s ease;
+        }
+
+        .nav-link:hover, .nav-link.active {
+            color: var(--accent-color);
+            background: rgba(0, 217, 255, 0.1);
+        }
+
+        .autonomous-badge {
+            background: linear-gradient(45deg, var(--success-color), #00cc66);
+            color: black;
+            font-weight: bold;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+        }
+
+        .performance-gauge {
+            text-align: center;
+            position: relative;
+        }
+
+        .gauge-value {
+            font-size: 3rem;
+            font-weight: bold;
+            color: var(--accent-color);
+        }
+
+        .log-container {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 1rem;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+        }
+
+        .log-entry {
+            margin-bottom: 4px;
+            padding: 2px 0;
+        }
+
+        .log-info { color: var(--text-secondary); }
+        .log-warning { color: var(--warning-color); }
+        .log-error { color: var(--danger-color); }
+        .log-success { color: var(--success-color); }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-robot me-2"></i>
+                JARVIS v3.0
+                <span class="autonomous-badge ms-2">AUTONOMOUS</span>
+            </a>
+            <div class="d-flex align-items-center">
+                <span class="status-indicator pulse" id="connectionStatus"></span>
+                <span class="me-3">System Status</span>
+                <span class="badge bg-info" id="currentTime"></span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav class="col-md-2 d-md-block sidebar collapse">
+                <div class="position-sticky pt-3">
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="#dashboard" data-section="dashboard">
+                                <i class="fas fa-tachometer-alt me-2"></i>Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#trading" data-section="trading">
+                                <i class="fas fa-chart-line me-2"></i>Trading
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#autonomous" data-section="autonomous">
+                                <i class="fas fa-cog me-2"></i>Autonomous Systems
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#learning" data-section="learning">
+                                <i class="fas fa-brain me-2"></i>Learning Engine
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#performance" data-section="performance">
+                                <i class="fas fa-chart-bar me-2"></i>Performance
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#portfolio" data-section="portfolio">
+                                <i class="fas fa-wallet me-2"></i>Portfolio
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#plugins" data-section="plugins">
+                                <i class="fas fa-puzzle-piece me-2"></i>Plugins
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#models" data-section="models">
+                                <i class="fas fa-microchip me-2"></i>AI Models
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#logs" data-section="logs">
+                                <i class="fas fa-file-alt me-2"></i>System Logs
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main Content -->
+            <main class="col-md-10 ms-sm-auto px-md-4">
+                <!-- Dashboard Section -->
+                <div id="dashboard-section" class="content-section">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                        <h1 class="h2">
+                            <i class="fas fa-tachometer-alt me-2"></i>
+                            System Dashboard
+                        </h1>
+                        <div class="btn-toolbar mb-2 mb-md-0">
+                            <button type="button" class="btn btn-primary" onclick="refreshDashboard()">
+                                <i class="fas fa-sync-alt me-1"></i>Refresh
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- System Health Cards -->
+                    <div class="row mb-4">
+                        <div class="col-md-3 mb-3">
+                            <div class="card metric-card">
+                                <div class="card-body text-center">
+                                    <div class="metric-value" id="systemHealth">--</div>
+                                    <div class="metric-label">System Health</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="card metric-card">
+                                <div class="card-body text-center">
+                                    <div class="metric-value" id="totalReturn">--</div>
+                                    <div class="metric-label">Total Return</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="card metric-card">
+                                <div class="card-body text-center">
+                                    <div class="metric-value" id="activeTrades">--</div>
+                                    <div class="metric-label">Active Trades</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="card metric-card">
+                                <div class="card-body text-center">
+                                    <div class="metric-value" id="autonomousActions">--</div>
+                                    <div class="metric-label">Autonomous Actions</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- System Status Row -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">System Components</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="systemComponents">
+                                        <!-- System components will be loaded here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Resource Usage</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="chart-container">
+                                        <canvas id="resourceChart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Activity -->
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Recent Activity</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="recentActivity">
+                                        <!-- Recent activity will be loaded here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Trading Section -->
+                <div id="trading-section" class="content-section" style="display: none;">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                        <h1 class="h2">
+                            <i class="fas fa-chart-line me-2"></i>
+                            Trading System
+                        </h1>
+                    </div>
+
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Current Strategy</h5>
+                                </div>
+                                <div class="card-body">
+                                    <h3 id="currentStrategy">--</h3>
+                                    <div class="mt-3">
+                                        <button class="btn btn-primary btn-sm me-2" onclick="switchStrategy('RSI')">RSI</button>
+                                        <button class="btn btn-primary btn-sm me-2" onclick="switchStrategy('EMA')">EMA</button>
+                                        <button class="btn btn-primary btn-sm" onclick="switchStrategy('MACD')">MACD</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Execute Trade</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <input type="text" class="form-control" id="tradeSymbol" placeholder="Symbol (e.g., AAPL)" value="AAPL">
+                                    </div>
+                                    <button class="btn btn-success" onclick="executeTrade()">
+                                        <i class="fas fa-play me-1"></i>Execute Trade
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Risk Management</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="riskMetrics">
+                                        <!-- Risk metrics will be loaded here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Recent Trades</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-dark" id="tradesTable">
+                                            <thead>
+                                                <tr>
+                                                    <th>Time</th>
+                                                    <th>Symbol</th>
+                                                    <th>Action</th>
+                                                    <th>Quantity</th>
+                                                    <th>Price</th>
+                                                    <th>Strategy</th>
+                                                    <th>Status</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <!-- Trades will be loaded here -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Other sections would be defined similarly... -->
+                <!-- For brevity, I'll include placeholders for other sections -->
+
+                <!-- Autonomous Section -->
+                <div id="autonomous-section" class="content-section" style="display: none;">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                        <h1 class="h2">
+                            <i class="fas fa-cog me-2"></i>
+                            Autonomous Systems
+                        </h1>
+                    </div>
+                    <div id="autonomousContent">
+                        <!-- Autonomous system content will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Learning Section -->
+                <div id="learning-section" class="content-section" style="display: none;">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                        <h1 class="h2">
+                            <i class="fas fa-brain me-2"></i>
+                            Learning Engine
+                        </h1>
+                    </div>
+                    
+                    <!-- User Feedback Form -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Provide Feedback</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label for="feedbackCategory" class="form-label">Category</label>
+                                        <select class="form-select" id="feedbackCategory">
+                                            <option value="response_quality">Response Quality</option>
+                                            <option value="trade_decision">Trade Decision</option>
+                                            <option value="strategy_choice">Strategy Choice</option>
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="feedbackRating" class="form-label">Rating (1-5)</label>
+                                        <input type="range" class="form-range" min="1" max="5" id="feedbackRating" value="3">
+                                        <div class="d-flex justify-content-between">
+                                            <small>Poor</small>
+                                            <small>Excellent</small>
+                                        </div>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="feedbackComments" class="form-label">Comments</label>
+                                        <textarea class="form-control" id="feedbackComments" rows="3"></textarea>
+                                    </div>
+                                    <button class="btn btn-primary" onclick="submitFeedback()">Submit Feedback</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Learning Insights</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div id="learningInsights">
+                                        <!-- Learning insights will be loaded here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Performance Section -->
+                <div id="performance-section" class="content-section" style="display: none;">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                        <h1 class="h2">
+                            <i class="fas fa-chart-bar me-2"></i>
+                            Performance Analytics
+                        </h1>
+                    </div>
+                    <div id="performanceContent">
+                        <!-- Performance content will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Portfolio Section -->
+                <div id="portfolio-section" class="content-section" style="display: none;">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                        <h1 class="h2">
+                            <i class="fas fa-wallet me-2"></i>
+                            Portfolio Management
+                        </h1>
+                    </div>
+                    <div id="portfolioContent">
+                        <!-- Portfolio content will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Plugins Section -->
+                <div id="plugins-section" class="content-section" style="display: none;">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                        <h1 class="h2">
+                            <i class="fas fa-puzzle-piece me-2"></i>
+                            Plugin Management
+                        </h1>
+                    </div>
+                    <div id="pluginsContent">
+                        <!-- Plugins content will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Models Section -->
+                <div id="models-section" class="content-section" style="display: none;">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                        <h1 class="h2">
+                            <i class="fas fa-microchip me-2"></i>
+                            AI Model Management
+                        </h1>
+                    </div>
+                    <div id="modelsContent">
+                        <!-- Models content will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- Logs Section -->
+                <div id="logs-section" class="content-section" style="display: none;">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                        <h1 class="h2">
+                            <i class="fas fa-file-alt me-2"></i>
+                            System Logs
+                        </h1>
+                    </div>
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="log-container" id="logContainer">
+                                <!-- Logs will be displayed here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.3.0/chart.min.js"></script>
+    <script src="/static/dashboard.js"></script>
+</body>
+</html>

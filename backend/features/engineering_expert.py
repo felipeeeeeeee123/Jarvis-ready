@@ -28,6 +28,7 @@ from .web_search import web_search
 from .qa_memory import QAMemory
 from .evaluator import Evaluator
 from utils.memory import MemoryManager
+from utils.security import safe_sympify, sanitize_filename
 
 BLUEPRINT_DIR = "blueprints"
 os.makedirs(BLUEPRINT_DIR, exist_ok=True)
@@ -185,7 +186,9 @@ class EngineeringExpert:
                 cached = self._find_similar_formula(formula)
                 if cached:
                     return cached.get("steps", cached["formula"])
-                expr = sp.sympify(expr_str)
+                expr = safe_sympify(expr_str)
+                if expr is None:
+                    return "[Error: Invalid or unsafe mathematical expression]"
                 result = sp.integrate(expr)
                 simplified = sp.simplify(result)
                 steps = f"Integrate {expr_str}\n\\boxed{{{simplified}}}"
@@ -202,7 +205,9 @@ class EngineeringExpert:
                 cached = self._find_similar_formula(formula)
                 if cached:
                     return cached.get("steps", cached["formula"])
-                expr = sp.sympify(expr_str)
+                expr = safe_sympify(expr_str)
+                if expr is None:
+                    return "[Error: Invalid or unsafe mathematical expression]"
                 result = sp.diff(expr, x)
                 simplified = sp.simplify(result)
                 steps = f"Differentiate {expr_str} w.r.t x\n\\boxed{{{simplified}}}"
@@ -217,23 +222,29 @@ class EngineeringExpert:
                     cached = self._find_similar_formula(formula)
                     if cached:
                         return cached.get("steps", cached["formula"])
-                    equation = sp.Eq(sp.sympify(left), sp.sympify(right))
+                    left_expr = safe_sympify(left)
+                    right_expr = safe_sympify(right)
+                    if left_expr is None or right_expr is None:
+                        return "[Error: Invalid or unsafe mathematical expression]"
+                    equation = sp.Eq(left_expr, right_expr)
                     solution = sp.solve(equation, symbol)
                     steps = f"Solve {left} = {right} for {var}\n\\boxed{{{solution}}}"
                     self._index_formula(formula, [var], steps)
                     return steps
             if "=" in q:
                 left, right = q.split("=", 1)
-                vars_ = list(
-                    sp.sympify(left).free_symbols | sp.sympify(right).free_symbols
-                )
+                left_expr = safe_sympify(left)
+                right_expr = safe_sympify(right)
+                if left_expr is None or right_expr is None:
+                    return "[Error: Invalid or unsafe mathematical expression]"
+                vars_ = list(left_expr.free_symbols | right_expr.free_symbols)
                 if vars_:
                     formula = f"{left}={right}"
                     cached = self._find_similar_formula(formula)
                     if cached:
                         return cached.get("steps", cached["formula"])
                     solution = sp.solve(
-                        sp.Eq(sp.sympify(left), sp.sympify(right)), vars_
+                        sp.Eq(left_expr, right_expr), vars_
                     )
                     steps = f"Solve {left} = {right} for {', '.join(map(str, vars_))}\n\\boxed{{{solution}}}"
                     self._index_formula(formula, [str(v) for v in vars_], steps)

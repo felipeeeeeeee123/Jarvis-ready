@@ -3,16 +3,26 @@ import hashlib
 import json
 import random
 import time
+import sys
 from pathlib import Path
 
-from backend.features.ai_brain import AIBrain
-from backend.features.evaluator import Evaluator
-from backend.features.qa_memory import QAMemory
-from backend.features.trending import TrendingTopics
-from backend.features.web_search import web_search
+# Add backend to path
+sys.path.append(str(Path(__file__).parent / "backend"))
+
+from features.ai_brain import AIBrain
+from features.evaluator import Evaluator
+from database.services import qa_service, memory_service
+from features.trending import TrendingTopics
+from features.web_search import web_search
+from features.knowledge_base import knowledge_base
+from utils.logging_config import setup_logging, get_logger
+from config.settings import settings
+
+# Initialize logging
+setup_logging()
+logger = get_logger(__name__)
 
 PAUSE_FILE = Path("autotrain.pause")
-
 TRAINING_PATH = Path("data/training_data.csv")
 BACKUP_PATH = Path("data/memory_backup.json")
 SEED_TOPICS = [
@@ -40,11 +50,12 @@ class SyntheticTrainer:
     def __init__(self):
         self.brain = AIBrain()
         self.trending = TrendingTopics()
-        self.memory = QAMemory()
+        self.qa_service = qa_service
         self.evaluator = Evaluator()
         self.seen = set()
         self.buffer = []
         self.load_memory()
+        logger.info("Synthetic trainer initialized")
 
     def load_memory(self):
         if TRAINING_PATH.exists():
@@ -79,7 +90,7 @@ class SyntheticTrainer:
         with open(BACKUP_PATH, "w") as f:
             json.dump({"hashes": list(self.seen)}, f, indent=2)
         self.buffer = []
-        self.memory.prune()
+        # Note: Database pruning is handled automatically by the service
 
     def generate_question(self) -> str:
         template = random.choice(QUESTION_TEMPLATES)
@@ -131,12 +142,29 @@ class SyntheticTrainer:
                 }
             )
             score = self.evaluator.score(question, answer, source)
-            self.memory.add(question, answer, source, score)
+            
+            # Add to database
+            self.qa_service.add_entry(question, answer, source, score)
+            
+            # Add to knowledge base for RAG
+            knowledge_base.add_document(
+                content=f"Q: {question}\nA: {answer}",
+                metadata={"confidence": score, "tokens": tokens},
+                source=f"autotrain_{source}"
+            )
+            
             self.evaluator.update_leaderboard(question, score)
             self.seen.add(qhash)
             counter += 1
             first_line = answer.splitlines()[0]
-            print(f"[# {counter}] Q: {question}\n-> A: {first_line}\n\u2705 Learned from {source} ({tokens} tokens)")
+            logger.info(f"Learned from {source}", extra={
+                "question": question[:100],
+                "answer_preview": first_line[:100],
+                "tokens": tokens,
+                "score": score
+            })
+            print(f"[# {counter}] Q: {question}\n-> A: {first_line}\n✅ Learned from {source} ({tokens} tokens)")
+            
             if len(self.buffer) >= 100:
                 self.save_progress()
             time.sleep(1)

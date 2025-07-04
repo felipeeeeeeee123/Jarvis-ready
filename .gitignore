@@ -2,26 +2,74 @@
 __pycache__/
 *.pyc
 *.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
 
-# Env
+# Virtual environments
 .env
 .venv/
 venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
 # Logs
 logs/
 *.log
 
+# Data and backups
+data/
+backups/
+*.db
+*.sqlite3
+
+# Generated files
+blueprints/
+simulations/
+models/
+uploads/
+*.png
+*.jpg
+*.svg
+*.obj
+*.stl
+
 # Archives
 *.zip
 *.tar.gz
+*.rar
 
 # OS files
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# Dev files
-.vscode/
+# Training data
+training_data.jsonl
+training_data.csv
+memory_export.json
 
-# Databases
-*.sqlite3
+# Temporary files
+*.tmp
+*.temp
+.pytest_cache/
+
+# Docker
+.dockerignore
+
+# Secrets (backup protection)
+*.key
+*.pem
+*.p12
+*.pfx
+
+# Keep templates
+!.env.template
