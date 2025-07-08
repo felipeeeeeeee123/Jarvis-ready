@@ -87,7 +87,8 @@ COMMON_MISSPELLINGS = {
 
 
 def normalize_prompt(text: str) -> str:
-    """Return text with basic typo fixes and fuzzy corrections."""
+    """Return lowercase text with basic typo fixes and fuzzy corrections."""
+    text = text.lower()
     for wrong, right in COMMON_MISSPELLINGS.items():
         text = text.replace(wrong, right)
     words = text.split()
@@ -118,66 +119,37 @@ def normalize_prompt(text: str) -> str:
 
 def extract_beam_length(prompt: str) -> float | None:
     """Return beam length in meters if found using fuzzy patterns."""
-    text = normalize_prompt(prompt.lower())
-    match = re.search(r"beam.*?(\d+(?:\.\d+)?)\s*(?:m|meters?)", text)
-    if not match:
-        match = re.search(r"(\d+(?:\.\d+)?)\s*(?:m|meters?).*?beam", text)
+    text = normalize_prompt(prompt)
+    match = re.search(r"(\d+(?:\.\d+)?)\s*(m|meter|meters)", text, re.I)
     if match:
         try:
             return float(match.group(1))
         except Exception:
-            pass
-    # look for number adjacent to a fuzzy 'beam'
-    parts = text.split()
-    for i, word in enumerate(parts):
-        if SequenceMatcher(None, word, "beam").ratio() > 0.8:
-            for idx in (i - 1, i + 1):
-                if 0 <= idx < len(parts):
-                    m = re.match(r"(\d+(?:\.\d+)?)(?:m)?", parts[idx])
-                    if m:
-                        try:
-                            return float(m.group(1))
-                        except Exception:
-                            pass
+            return None
     return None
 
 
 def answer_question(question: str) -> str:
     """Return an answer using web search and Ollama with fallbacks."""
-    question = normalize_prompt(question)
-    lower = question.lower()
+    question_clean = normalize_prompt(question)
+    lower = question_clean.lower()
 
     # route engineering or 3d modeling prompts to the expert
-    if any(
-        kw in lower
-        for kw in [
-            "moment of inertia",
-            "beam",
-            "load",
-            "stress",
-            "strain",
-            "symbolic",
-            "blueprint",
-            "calculate",
-            "render 3d",
-            "torque",
-            "force",
-            "moment",
-        ]
-    ):
-        if "render" in lower and "3d" in lower:
-            try:
-                length = extract_beam_length(question)
-                if length is None:
-                    raise ValueError("length not found")
-                model_path = engineering_expert.generate_beam_model(length)
-                return f"3D beam model generated: {model_path}"
-            except Exception:
-                return (
-                    "Could not parse beam length. Please say something like 'render 3D model of beam 10m long'."
-                )
-        else:
-            return engineering_expert.solve(question)
+    if any(k in lower for k in ["render", "model", "beam", "3d"]):
+        try:
+            length = extract_beam_length(question_clean)
+            if length is None:
+                raise ValueError("length not found")
+            width_match = re.search(r"width\s*(\d+(?:\.\d+)?)", lower)
+            height_match = re.search(r"height\s*(\d+(?:\.\d+)?)", lower)
+            width = float(width_match.group(1)) if width_match else 0.1
+            height = float(height_match.group(1)) if height_match else 0.1
+            model_path = engineering_expert.generate_beam_model(length, width, height)
+            return f"3D beam model generated: {model_path}"
+        except Exception:
+            return "Could not parse beam length. Please say something like 'render 3D beam 10m'."
+    if any(k in lower for k in ["solve", "calc", "calculate", "find"]):
+        return engineering_expert.solve(question_clean)
 
     # handle direct date requests instead of the old fixed answer
     date_triggers = (
