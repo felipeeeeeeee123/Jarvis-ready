@@ -124,16 +124,80 @@ class EngineeringExpert:
         self.sim_index = MemoryManager(path="data/simulation_index.json")
 
     def solve(self, prompt: str) -> str:
-        """Solve basic engineering formulas symbolically."""
-        from sympy import symbols, simplify, latex
+        """Solve basic engineering formulas or equations."""
         import re
+        from sympy import Eq, symbols, solve, simplify, pretty
+        from sympy.parsing.sympy_parser import (
+            parse_expr,
+            standard_transformations,
+            implicit_multiplication_application,
+            convert_xor,
+        )
 
-        if "moment of inertia" in prompt.lower():
-            m, L = symbols("m L")
-            inertia = simplify((1 / 12) * m * L ** 2)
-            return f"The moment of inertia formula is:\n\nI = {latex(inertia)}"
+        text = (
+            prompt.lower()
+            .replace("^", "**")
+            .replace("π", "pi")
+            .replace("sqrt", "sqrt")
+        )
+        text = re.sub(r"^(solve|calc|calculate|find)\s+", "", text)
 
-        return "I'm working on solving that. Try asking for a specific engineering formula."
+        formula_map = {
+            "torque": "tau = f*r",
+            "force": "f = m*a",
+            "area": "a = pi*r**2",
+        }
+
+        equation_str = None
+        for name, eq in formula_map.items():
+            if name in text:
+                equation_str = eq
+                break
+        if equation_str is None:
+            eq_part = text.split(" for ")[0].split(" when ")[0].split(" if ")[0]
+            eq_match = re.search(r"[a-z0-9*+/\-^(). ]+=[a-z0-9*+/\-^(). ]+", eq_part)
+            if eq_match:
+                equation_str = eq_match.group(0).strip()
+        if not equation_str:
+            return "I couldn't figure out the equation to solve."
+
+        var_match = re.search(r"for\s+([a-zA-Z]+)", text)
+        if var_match:
+            target_var = var_match.group(1)
+        else:
+            target_var = equation_str.split("=")[0].strip()
+
+        left, right = equation_str.split("=", 1)
+        transformations = standard_transformations + (
+            implicit_multiplication_application,
+            convert_xor,
+        )
+        left_expr = parse_expr(left, transformations=transformations)
+        right_expr = parse_expr(right, transformations=transformations)
+        equation = Eq(left_expr, right_expr)
+        all_syms = {str(s) for s in equation.free_symbols}
+        all_syms.discard(target_var)
+
+        subs: dict[str, float] = {}
+        for sym, val in re.findall(r"([a-zA-Z]+)\s*(?:=|is)?\s*(-?\d+(?:\.\d+)?)", text):
+            if sym != target_var:
+                subs[sym] = float(val)
+
+        missing = [s for s in all_syms if s not in subs]
+        if missing:
+            miss = ", ".join(sorted(missing))
+            return f"Missing values: need {miss} to solve {left.strip()} = {right.strip()}"
+
+        eq_sub = equation.subs({symbols(k): v for k, v in subs.items()})
+        sym = symbols(target_var)
+        try:
+            sol = solve(eq_sub, sym)
+        except Exception as exc:  # pragma: no cover - protect against sympy errors
+            return f"[Error solving equation: {exc}]"
+        if not sol:
+            return "No solution found."
+        simplified = simplify(sol[0])
+        return f"{target_var} = {pretty(simplified)}"
 
     def generate_beam_model(
         self, length_m: float, width_m: float = 0.1, height_m: float = 0.1
