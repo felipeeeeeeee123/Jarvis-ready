@@ -1,0 +1,14 @@
+[submodule "StockSharp"]
+	path = StockSharp
+	url = https://github.com/felipeeeeeeee123/StockSharp.git
+	branch = master
+
+[submodule "ComfyUI"]
+	path = ComfyUI
+	url = https://github.com/felipeeeeeeee123/ComfyUI.git
+	branch = master
+
+[submodule "AutoGPT"]
+	path = AutoGPT
+	url = https://github.com/felipeeeeeeee123/AutoGPT.git
+	branch = master
